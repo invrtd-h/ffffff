@@ -1,0 +1,9 @@
+#ifndef UNDERSCORE_CPP_UNDERSCORE_H
+#define UNDERSCORE_CPP_UNDERSCORE_H
+
+struct underscore {
+
+
+} ___;
+
+#endif //UNDERSCORE_CPP_UNDERSCORE_H
