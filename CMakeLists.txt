@@ -3,4 +3,4 @@ project(underscore_cpp)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(underscore_cpp main.cpp underscore.cpp underscore.h)
+add_executable(underscore_cpp main.cpp underscoreimpl.cpp underscoreimpl.h underscore.h)
