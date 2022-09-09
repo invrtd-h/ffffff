@@ -10,4 +10,8 @@ int main() {
     __.apply(v, [](int n) {return n * 2;});
     
     for (int n : v) std::cout << n << ' ';
+    
+    auto v2 = __.map(v, [](int n) -> long long {return n * n;});
+    
+    for (auto &n : v2) std::cout << n << ' ';
 }

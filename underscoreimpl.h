@@ -9,6 +9,16 @@ namespace usconts {
     concept Printable = requires (T t) {
         std::cout << t;
     };
+    
+    template<typename F, typename RET, typename T>
+    concept IsFunction = requires (F f, T t) {
+        f(t) -> RET;
+    };
+    
+    template<class T>
+    concept DefaultConstructible = requires {
+        T();
+    };
 }
 
 class underscore {
@@ -30,6 +40,16 @@ public:
         }
         
         return *this;
+    }
+    
+    template<typename T, class FuncObj>
+    requires std::invocable<FuncObj, T> and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+    auto map(const std::vector<T> &vec, const FuncObj &func) -> std::vector<typename std::invoke_result<FuncObj, T>::type> {
+        std::vector<typename std::invoke_result<FuncObj, T>::type> ret(vec.size());
+        for (size_t i = 0; i < vec.size(); ++i) {
+            ret[i] = func(vec[i]);
+        }
+        return ret;
     }
 };
 
