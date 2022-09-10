@@ -3,7 +3,3 @@
 //
 
 #include "underscoreimpl.h"
-
-void underscore::hello() {
-    std::cout << "Hello\n";
-}

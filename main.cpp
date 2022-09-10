@@ -3,11 +3,9 @@
 #include "underscore.h"
 
 int main() {
-    __.hello2();
-    __.hello3();
-    
+
     std::vector<int> v = {1, 2, 3, 4, 5};
-    __.apply(v, [](int n) {return n * 2;});
+    __.each(v, [](int &n) {n *= 2;});
     
     for (int n : v) std::cout << n << ' ';
     
@@ -19,4 +17,7 @@ int main() {
     auto arr2 = __.map(arr, [](int n) {return n + 2;});
     
     for (auto &n : arr2) std::cout << n << ' ';
+    
+    int nn = 1;
+    decltype(__.identity(nn)) nnn = __.identity(nn);
 }
