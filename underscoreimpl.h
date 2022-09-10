@@ -5,33 +5,59 @@
 #include <functional>
 #include <iostream>
 
-namespace usconts {
-    template<typename T>
-    concept Printable = requires (T t) {
-        std::cout << t;
+#include "usconcepts.h"
+
+namespace u_u {
+    struct Each {
+        template<class Cont, class FuncObj>
+        requires std::ranges::range<Cont>
+                 and std::invocable<FuncObj, typename Cont::value_type &>
+        void operator()(Cont &cont, const FuncObj &func) const;
     };
     
-    template<class T>
-    concept DefaultConstructible = requires {
-        T();
+    /**
+     * Identity-return function obj.
+     * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
+     * @param t any-variable
+     * @return t
+     */
+    struct Identity {
+        template<class T>
+        constexpr T &&operator()(T &&t) const noexcept {
+            return std::forward<T>(t);
+        }
     };
+    
+    /**
+     * No-operation function obj.
+     * @return no_return
+     */
+    struct Noop {
+        void operator()() const noexcept {
+            // do nothing
+        }
+    };
+    
+    template<class Cont, class FuncObj>
+    requires std::ranges::range<Cont>
+             and std::invocable<FuncObj, typename Cont::value_type &>
+    void Each::operator()(Cont &cont, const FuncObj &func) const {
+        for (auto &val : cont) {
+            func(val);
+        }
+    }
 }
 
 class underscore {
 public:
-    struct {
-        template<class Cont, class UnaryFuncObj>
-        requires std::ranges::range<Cont> and std::invocable<UnaryFuncObj, typename Cont::value_type &>
-        void operator()(Cont &cont, const UnaryFuncObj &func) const {
-            for (auto &val : cont) {
-                func(val);
-            }
-        }
-    } each;
+    u_u::Each each{};
+    u_u::Identity identity{};
+    u_u::Noop noop{};
     
     struct {
         template<typename T, class FuncObj>
-        requires std::invocable<FuncObj, T> and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        requires std::invocable<FuncObj, T>
+                and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::vector<T> &vec, const FuncObj &func) const {
             std::vector<typename std::invoke_result<FuncObj, T>::type> ret(vec.size());
             for (size_t i = 0; i < vec.size(); ++i) {
@@ -42,7 +68,8 @@ public:
         }
     
         template<typename T, class FuncObj, size_t N>
-        requires std::invocable<FuncObj, T> and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        requires std::invocable<FuncObj, T>
+                and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::array<T, N> &vec, const FuncObj &func) const {
             std::array<typename std::invoke_result<FuncObj, T>::type, N> ret;
             for (size_t i = 0; i < vec.size(); ++i) {
@@ -53,28 +80,31 @@ public:
         }
     } map;
     
-    /**
-     * Identity-return function obj.
-     * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
-     * @param t any
-     * @return t
-     */
     struct {
-        template<class T>
-        constexpr T &&operator()(T &&t) const noexcept {
-            return std::forward<T>(t);
+        template<class NewDataGeneratePolicy, class FunctionBody>
+        auto operator()(const NewDataGeneratePolicy &new_data_generate_policy,
+                        const FunctionBody &function_body) const
+        {
+        
         }
-    } identity;
+        
+    } bloop;
     
-    /**
-     * No-operation function obj.
-     * @return no_return
-     */
     struct {
-        void operator()() const noexcept {
-            // do nothing
+        template<typename T, class FuncObj>
+        requires std::invocable<FuncObj, T>
+                 and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        auto operator()(const std::vector<T> &vec, const FuncObj &func) const {
+            return std::vector<typename std::invoke_result<FuncObj, T>::type>(vec.size());
         }
-    } noop;
+    
+        template<typename T, class FuncObj, size_t N>
+        requires std::invocable<FuncObj, T>
+                 and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        auto operator()(const std::array<T, N> &vec, const FuncObj &func) const {
+            return std::array<typename std::invoke_result<FuncObj, T>::type, N>();
+        }
+    } make_result_container;
 };
 
 #endif //UNDERSCORE_CPP_UNDERSCOREIMPL_H

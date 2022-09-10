@@ -20,4 +20,6 @@ int main() {
     
     int nn = 1;
     decltype(__.identity(nn)) nnn = __.identity(nn);
+    
+    __.make_result_container;
 }
