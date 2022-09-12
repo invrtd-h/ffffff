@@ -17,9 +17,4 @@ int main() {
     auto arr2 = __.map(arr, [](int n) {return n + 2;});
     
     for (auto &n : arr2) std::cout << n << ' ';
-    
-    int nn = 1;
-    decltype(__.identity(nn)) nnn = __.identity(nn);
-    
-    __.make_result_container;
 }

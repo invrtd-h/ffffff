@@ -15,6 +15,31 @@ namespace u_u {
         void operator()(Cont &cont, const FuncObj &func) const;
     };
     
+    struct Map {
+        template<class Cont, class FuncObj>
+        requires std::ranges::range<Cont>
+                 and std::invocable<FuncObj, typename Cont::value_type &>
+        auto operator()(const Cont &cont, const FuncObj &func) const;
+    };
+    
+    /**
+     * Making Result-Container function obj.
+     * @param cont any std::(container) with type T
+     * @param func any function obj with 1 param, say, T -> U
+     * @return any std::(container) with type U
+     */
+    struct MakeResultContainer {
+        template<typename T, class FuncObj>
+        requires std::invocable<FuncObj, T>
+                 and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        auto operator()(const std::vector<T> &cont, const FuncObj &func) const;
+        
+        template<typename T, class FuncObj, size_t N>
+        requires std::invocable<FuncObj, T>
+                 and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        auto operator()(const std::array<T, N> &cont, const FuncObj &func) const;
+    };
+    
     /**
      * Identity-return function obj.
      * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
@@ -38,6 +63,14 @@ namespace u_u {
         }
     };
     
+    /*
+     * Struct def part end;
+     */
+    
+    /*
+     * Implementation part start;
+     */
+    
     template<class Cont, class FuncObj>
     requires std::ranges::range<Cont>
              and std::invocable<FuncObj, typename Cont::value_type &>
@@ -46,39 +79,42 @@ namespace u_u {
             func(val);
         }
     }
+    
+    template<class Cont, class FuncObj>
+    requires std::ranges::range<Cont>
+             and std::invocable<FuncObj, typename Cont::value_type &>
+    auto Map::operator()(const Cont &cont, const FuncObj &func) const {
+        auto ret = MakeResultContainer()(cont, func);
+        for (size_t i = 0; i < cont.size(); ++i) {
+            ret[i] = func(cont[i]);
+        }
+        
+        return ret;
+    }
+    
+    template<typename T, class FuncObj>
+    requires std::invocable<FuncObj, T>
+             and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+    auto MakeResultContainer::operator()(const std::vector<T> &cont, const FuncObj &func) const {
+        return std::vector<typename std::invoke_result<FuncObj, T>::type>(cont.size());
+    }
+    
+    template<typename T, class FuncObj, size_t N>
+    requires std::invocable<FuncObj, T>
+             and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+    auto MakeResultContainer::operator()(const std::array<T, N> &cont, const FuncObj &func) const {
+        return std::array<typename std::invoke_result<FuncObj, T>::type, N>();
+    }
 }
 
 class underscore {
 public:
     u_u::Each each{};
+    u_u::Map map{};
     u_u::Identity identity{};
     u_u::Noop noop{};
     
-    struct {
-        template<typename T, class FuncObj>
-        requires std::invocable<FuncObj, T>
-                and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::vector<T> &vec, const FuncObj &func) const {
-            std::vector<typename std::invoke_result<FuncObj, T>::type> ret(vec.size());
-            for (size_t i = 0; i < vec.size(); ++i) {
-                ret[i] = func(vec[i]);
-            }
-        
-            return ret;
-        }
-    
-        template<typename T, class FuncObj, size_t N>
-        requires std::invocable<FuncObj, T>
-                and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::array<T, N> &vec, const FuncObj &func) const {
-            std::array<typename std::invoke_result<FuncObj, T>::type, N> ret;
-            for (size_t i = 0; i < vec.size(); ++i) {
-                ret[i] = func(vec[i]);
-            }
-        
-            return ret;
-        }
-    } map;
+    u_u::MakeResultContainer make_result_container;
     
     struct {
         template<class NewDataGeneratePolicy, class FunctionBody>
@@ -89,22 +125,6 @@ public:
         }
         
     } bloop;
-    
-    struct {
-        template<typename T, class FuncObj>
-        requires std::invocable<FuncObj, T>
-                 and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::vector<T> &vec, const FuncObj &func) const {
-            return std::vector<typename std::invoke_result<FuncObj, T>::type>(vec.size());
-        }
-    
-        template<typename T, class FuncObj, size_t N>
-        requires std::invocable<FuncObj, T>
-                 and usconts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::array<T, N> &vec, const FuncObj &func) const {
-            return std::array<typename std::invoke_result<FuncObj, T>::type, N>();
-        }
-    } make_result_container;
 };
 
 #endif //UNDERSCORE_CPP_UNDERSCOREIMPL_H
