@@ -51,13 +51,7 @@ build cmake_object_order_depends_target_underscore_cpp: phony || CMakeFiles/unde
 
 build CMakeFiles/underscore_cpp.dir/main.cpp.o: CXX_COMPILER__underscore_cpp_Debug /Users/hyegeun_song/CLionProjects/underscore_cpp/main.cpp || cmake_object_order_depends_target_underscore_cpp
   DEP_FILE = CMakeFiles/underscore_cpp.dir/main.cpp.o.d
-  FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=11.4 -std=gnu++20
-  OBJECT_DIR = CMakeFiles/underscore_cpp.dir
-  OBJECT_FILE_DIR = CMakeFiles/underscore_cpp.dir
-
-build CMakeFiles/underscore_cpp.dir/underscoreimpl.cpp.o: CXX_COMPILER__underscore_cpp_Debug /Users/hyegeun_song/CLionProjects/underscore_cpp/underscoreimpl.cpp || cmake_object_order_depends_target_underscore_cpp
-  DEP_FILE = CMakeFiles/underscore_cpp.dir/underscoreimpl.cpp.o.d
-  FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=11.4 -std=gnu++20
+  FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=11.4 -fmodules-ts -std=gnu++20
   OBJECT_DIR = CMakeFiles/underscore_cpp.dir
   OBJECT_FILE_DIR = CMakeFiles/underscore_cpp.dir
 
@@ -69,7 +63,7 @@ build CMakeFiles/underscore_cpp.dir/underscoreimpl.cpp.o: CXX_COMPILER__undersco
 #############################################
 # Link the executable underscore_cpp
 
-build underscore_cpp: CXX_EXECUTABLE_LINKER__underscore_cpp_Debug CMakeFiles/underscore_cpp.dir/main.cpp.o CMakeFiles/underscore_cpp.dir/underscoreimpl.cpp.o
+build underscore_cpp: CXX_EXECUTABLE_LINKER__underscore_cpp_Debug CMakeFiles/underscore_cpp.dir/main.cpp.o
   FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=11.4
   OBJECT_DIR = CMakeFiles/underscore_cpp.dir
   POST_BUILD = :
