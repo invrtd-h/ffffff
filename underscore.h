@@ -14,20 +14,12 @@
 #include "usconcepts.h"
 
 namespace under {
+    
     struct Each {
         template<class Cont, class FuncObj>
-        void operator()(Cont &cont, const FuncObj &func) const
         requires std::ranges::range<Cont>
-                 and std::invocable<FuncObj, typename Cont::value_type &> {
-            for (auto &val : cont) {
-                func(val);
-            }
-        };
-        
-        template<class T>
-        int foo(T bar) {
-            return static_cast<int>(bar);
-        }
+                 and std::invocable<FuncObj, typename Cont::value_type &>
+        void operator()(Cont &cont, const FuncObj &func) const;
     };
     
     struct Map {
@@ -58,10 +50,6 @@ namespace under {
         requires std::invocable<FuncObj, T>
                  and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::deque<T> &cont, const FuncObj &func) const;
-        
-        void succ() const {
-        
-        }
     };
     
     /**
@@ -75,6 +63,13 @@ namespace under {
         constexpr T &&operator()(T &&t) const noexcept;
     };
     
+    struct Identity_0_ {
+        template<class T, typename ...Args>
+        constexpr T &&operator()(T &&t, Args &&...args) const noexcept {
+            return std::forward<T>(t);
+        }
+    };
+    
     /**
      * No-operation function obj.
      * @return no_return
@@ -86,6 +81,53 @@ namespace under {
         void operator()(const T &t) const noexcept;
     };
     
+    template<class NewDataPolicy, class AnExecutionPolicy>
+    struct Bloop {
+        template<class Cont, class FuncObj>
+        requires std::ranges::range<Cont>
+                 and std::invocable<FuncObj, typename Cont::value_type &>
+        auto operator()(Cont &cont, const FuncObj &func) const {
+    
+            decltype(NewDataPolicy()(cont, func)) ret = NewDataPolicy()(cont, func);
+    
+            AnExecutionPolicy()(ret, cont, func);
+    
+            return ret;
+        }
+    };
+    
+    struct ExecutionPolicy {
+        static const bool is_execution_policy = true;
+    };
+    
+    struct MapExecution : public ExecutionPolicy {
+        /**
+         * @todo consider if the return value of func is void
+         * @tparam T_cont
+         * @tparam U_cont
+         * @tparam FuncObj
+         * @param u_cont
+         * @param t_cont
+         * @param func
+         * @return
+         */
+        template<class T_cont, class U_cont, class FuncObj>
+        auto &operator()(U_cont &u_cont, T_cont &t_cont, const FuncObj &func) const {
+            auto it_t = t_cont.begin();
+            auto it_u = u_cont.begin();
+            
+            while (it_t != t_cont.end()) {
+                *it_u = func(*it_t);
+                ++it_t; ++it_u;
+            }
+            
+            return u_cont;
+        }
+    };
+    
+    using BloopEach = Bloop<Identity_0_, MapExecution>;
+    using BloopMap = Bloop<MakeResultCont, MapExecution>;
+    
     /*
      * Struct def part end;
      */
@@ -93,6 +135,15 @@ namespace under {
     /*
      * Implementation def part start;
      */
+
+    template<class Cont, class FuncObj>
+    requires std::ranges::range<Cont>
+             and std::invocable<FuncObj, typename Cont::value_type &>
+    void Each::operator()(Cont &cont, const FuncObj &func) const {
+        for (auto &val : cont) {
+            func(val);
+        }
+    }
     
     template<class Cont, class FuncObj>
     requires std::ranges::range<Cont>
@@ -156,6 +207,9 @@ public:
     under::Identity         identity;
     under::Noop             noop;
     under::MakeResultCont   make_result_cont;
+    
+    under::BloopEach        bloop_each;
+    under::BloopMap         bloop_map;
 };
 
 static underscore __;
