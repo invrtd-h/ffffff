@@ -29,27 +29,35 @@ namespace under {
         auto operator()(const Cont &cont, const FuncObj &func) const;
     };
     
+    struct NewDataPolicy {
+        static const bool is_new_data_policy = true;
+    };
+    
+    struct ExecutionPolicy {
+        static const bool is_execution_policy = true;
+    };
+    
     /**
      * Making Result-Container function obj.
      * @param cont any std::(container) with type T
      * @param func any function obj with 1 param, say, T -> U
      * @return any std::(container) with type U
      */
-    struct MakeResultCont {
+    struct CopyCont : public NewDataPolicy {
         template<typename T, class FuncObj, size_t N>
         requires std::invocable<FuncObj, T>
                  and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::array<T, N> &cont, const FuncObj &func) const;
+        auto operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept;
         
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
                  and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::vector<T> &cont, const FuncObj &func) const;
+        auto operator()(const std::vector<T> &cont, const FuncObj &func) const noexcept;
         
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
                  and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::deque<T> &cont, const FuncObj &func) const;
+        auto operator()(const std::deque<T> &cont, const FuncObj &func) const noexcept;
     };
     
     /**
@@ -63,7 +71,20 @@ namespace under {
         constexpr T &&operator()(T &&t) const noexcept;
     };
     
-    struct Identity_0_ {
+    template<size_t SZ>
+    struct Identity_at {
+        static const bool is_new_data_policy = true;
+    
+        template<class T, typename ...Args>
+        constexpr auto &&operator()(T &&t, Args &&...args) const noexcept {
+            return Identity_at<SZ - 1>()(std::forward<Args>(args)...);
+        }
+    };
+    
+    template<>
+    struct Identity_at<0> {
+        static const bool is_new_data_policy = true;
+        
         template<class T, typename ...Args>
         constexpr T &&operator()(T &&t, Args &&...args) const noexcept {
             return std::forward<T>(t);
@@ -81,23 +102,21 @@ namespace under {
         void operator()(const T &t) const noexcept;
     };
     
-    template<class NewDataPolicy, class AnExecutionPolicy>
+    template<class ANewDataPolicy, class AnExecutionPolicy>
+    requires ANewDataPolicy::is_new_data_policy
+            and AnExecutionPolicy::is_execution_policy
     struct Bloop {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
         auto operator()(Cont &cont, const FuncObj &func) const {
     
-            decltype(NewDataPolicy()(cont, func)) ret = NewDataPolicy()(cont, func);
+            decltype(auto) ret = ANewDataPolicy()(cont, func);
     
             AnExecutionPolicy()(ret, cont, func);
     
             return ret;
         }
-    };
-    
-    struct ExecutionPolicy {
-        static const bool is_execution_policy = true;
     };
     
     struct MapExecution : public ExecutionPolicy {
@@ -125,8 +144,8 @@ namespace under {
         }
     };
     
-    using BloopEach = Bloop<Identity_0_, MapExecution>;
-    using BloopMap = Bloop<MakeResultCont, MapExecution>;
+    using BloopEach = Bloop<Identity_at<0>, MapExecution>;
+    using BloopMap = Bloop<CopyCont, MapExecution>;
     
     /*
      * Struct def part end;
@@ -149,7 +168,7 @@ namespace under {
     requires std::ranges::range<Cont>
              and std::invocable<FuncObj, typename Cont::value_type &>
     auto Map::operator()(const Cont &cont, const FuncObj &func) const {
-        auto ret = MakeResultCont()(cont, func);
+        auto ret = CopyCont()(cont, func);
         
         {
             auto it_t = cont.begin();
@@ -167,21 +186,21 @@ namespace under {
     template<typename T, class FuncObj, size_t N>
     requires std::invocable<FuncObj, T>
              and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-    auto under::MakeResultCont::operator()(const std::array<T, N> &cont, const FuncObj &func) const {
+    auto under::CopyCont::operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept {
         return std::array<typename std::invoke_result<FuncObj, T>::type, N>();
     }
     
     template<typename T, class FuncObj>
     requires std::invocable<FuncObj, T>
              and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-    auto under::MakeResultCont::operator()(const std::vector<T> &cont, const FuncObj &func) const {
+    auto CopyCont::operator()(const std::vector<T> &cont, const FuncObj &func) const noexcept {
         return std::vector<typename std::invoke_result<FuncObj, T>::type>(cont.size());
     }
     
     template<typename T, class FuncObj>
     requires std::invocable<FuncObj, T>
              and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-    auto MakeResultCont::operator()(const std::deque<T> &cont, const FuncObj &func) const {
+    auto CopyCont::operator()(const std::deque<T> &cont, const FuncObj &func) const noexcept {
         return std::deque<typename std::invoke_result<FuncObj, T>::type>(cont.size());
     }
     
@@ -204,9 +223,6 @@ class underscore {
 public:
     under::Each             each;
     under::Map              map;
-    under::Identity         identity;
-    under::Noop             noop;
-    under::MakeResultCont   make_result_cont;
     
     under::BloopEach        bloop_each;
     under::BloopMap         bloop_map;
