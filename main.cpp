@@ -4,11 +4,6 @@
 #include "underscore.h"
 #include "debug_tools.h"
 
-struct tc {
-    std::vector<int> v1, v2, v3, v4, v5, v6, v7, v8, v9;
-    std::array<int, 7> a1, a2, a3, a4, a5;
-};
-
 int main() {
     std::vector<int> v{1, 2, 3, 4, 5};
     __.each(v, [](int &n) {n *= 2;});
@@ -37,8 +32,18 @@ int main() {
     std::cout << '\n' << '\n';
     
     ForwardingTester ft;
-    ft.catch_instance(under::Identity_at<2>()(1, 3, ft));
-    ft.catch_instance(under::Identity_at<6>()(1, 2, 3, 4, 5, 6, ForwardingTester(), 8));
+    ft.catch_instance(us::Identity_at<2>()(1, 3, ft));
+    ft.catch_instance(us::Identity_at<6>()(1, 2, 3, 4, 5, 6, ForwardingTester(), 8));
     
-    std::cout << under::Identity_at<3>()(1, 2, 3, 4);
+    std::cout << us::Identity_at<3>()(1, 2, 3, 4) << '\n';
+    
+    us::tmf::replace<double, std::vector<double>, int> vecev{1, 2};
+    std::cout << typeid(vecev).name() << '\n';
+    
+    us::tmf::replace<double, std::array<double, 5>, int> arrrrs{1, 2, 3, 4, 5};
+    std::cout << typeid(arrrrs).name() << ' ' << arrrrs.back() << '\n';
+    
+    constexpr bool b = us::tmf::IsStdMap<std::multimap<int, double>>;
+    std::cout << std::boolalpha << b << '\n';
+    
 }

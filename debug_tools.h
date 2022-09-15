@@ -20,6 +20,9 @@ public:
         std::cout << "이동 대입 생성자 호출!\n";
         return *this;
     }
+    ~ForwardingTester() {
+        std::cout << "소멸자 호출!\n";
+    }
     
     ForwardingTester &catch_instance(const ForwardingTester &ft) {
         std::cout << "좌측값 레퍼런스 캐치\n";
@@ -30,5 +33,6 @@ public:
         return *this;
     }
 };
+
 
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H

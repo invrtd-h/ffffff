@@ -8,15 +8,64 @@
 #include <utility>
 #include <ranges>
 
-#include <forward_list>
 #include <vector>
 #include <array>
 #include <deque>
+#include <forward_list>
 #include <list>
 
-#include "usconcepts.h"
+#include <set>
+#include <map>
+#include <unordered_set>
+#include <unordered_map>
 
-namespace under {
+/**
+ * The laboratory : New features are tested in this space.
+ */
+namespace us::lab {
+
+}
+
+/**
+ * Template Meta Functions && Concepts.
+ */
+namespace us::tmf {
+    template<typename T>
+    concept Printable = requires (T t) {
+        std::cout << t;
+    };
+    
+    template<class T>
+    concept DefaultConstructible = requires {
+        T();
+    };
+    
+    template<class Cont>
+    concept IsStdMap = (requires {typename Cont::key_type; typename Cont::mapped_type;})
+    and (std::is_same_v<Cont, std::map      <typename Cont::key_type, typename Cont::mapped_type>>
+    or   std::is_same_v<Cont, std::multimap <typename Cont::key_type, typename Cont::mapped_type>>);
+
+    template<typename T, class Cont, typename U>
+    using replace =
+            std::conditional_t<
+                std::is_same_v<Cont, std::vector<T>>, std::vector<U>,
+            std::conditional_t<
+                std::is_same_v<Cont, std::array<T, Cont().size()>>, std::array<U, Cont().size()>,
+            std::conditional_t<
+                std::is_same_v<Cont, std::deque<T>>, std::deque<U>,
+            std::conditional_t<
+                std::is_same_v<Cont, std::list<T>>, std::list<U>,
+            std::conditional_t<
+                std::is_same_v<Cont, std::forward_list<T>>, std::list<U>,
+            std::conditional_t<
+                std::is_same_v<Cont, std::set<T>>, std::set<U>,
+            std::conditional_t<
+                std::is_same_v<Cont, std::multiset<T>>, std::multiset<U>,
+                
+            void>>>>>>>;
+}
+
+namespace us {
     
     struct Each {
         template<class Cont, class FuncObj>
@@ -49,50 +98,52 @@ namespace under {
      * @param cont any std::(container) with type T
      * @param func any function obj with 1 param, say, T -> U
      * @return any std::(container) with type U
+     *
+     * @todo generate a policy that copying user-defined container
      */
     struct CopyCont : public NewDataPolicy {
         template<typename T, class FuncObj, size_t N>
         requires std::invocable<FuncObj, T>
-                 and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+                 and tmf::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept {
             return std::array<typename std::invoke_result<FuncObj, T>::type, N>();
         }
         
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
-                 and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+                 and tmf::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::vector<T> &cont, const FuncObj &func) const noexcept {
             return std::vector<typename std::invoke_result<FuncObj, T>::type>(cont.size());
         }
         
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
-                 and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+                 and tmf::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::deque<T> &cont, const FuncObj &func) const noexcept {
             return std::deque<typename std::invoke_result<FuncObj, T>::type>(cont.size());
         }
     
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
-                 and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+                 and tmf::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::list<T> &cont, const FuncObj &func) const noexcept {
             return std::list<typename std::invoke_result<FuncObj, T>::type>(cont.size());
         }
     
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
-                 and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+                 and tmf::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
         auto operator()(const std::forward_list<T> &cont, const FuncObj &func) const noexcept {
             return std::forward_list<typename std::invoke_result<FuncObj, T>::type>(cont.size());
         }
-        
-        /**
-         * @todo generate a policy that copying user-defined container
-         */
     };
     
     struct NewCont : public NewDataPolicy {
-    
+        template<typename T, class FuncObj>
+        requires std::invocable<FuncObj, T>
+        auto operator()(const std::vector<T> &cont, const FuncObj &func) const noexcept {
+            return std::vector<typename std::invoke_result<FuncObj, T>::type>();
+        }
     };
     
     /**
@@ -225,11 +276,11 @@ namespace under {
 
 class underscore {
 public:
-    under::Each             each;
-    under::Map              map;
+    us::Each             each;
+    us::Map              map;
     
-    under::BloopEach        bloop_each;
-    under::BloopMap         bloop_map;
+    us::BloopEach        bloop_each;
+    us::BloopMap         bloop_map;
 };
 
 static underscore __;
