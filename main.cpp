@@ -43,7 +43,6 @@ int main() {
     us::tmf::replace<double, std::array<double, 5>, int> arrrrs{1, 2, 3, 4, 5};
     std::cout << typeid(arrrrs).name() << ' ' << arrrrs.back() << '\n';
     
-    constexpr bool b = us::tmf::IsStdMap<std::multimap<int, double>>;
-    std::cout << std::boolalpha << b << '\n';
+    conceptcheck_220916();
     
 }

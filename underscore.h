@@ -40,6 +40,33 @@ namespace us::tmf {
         T();
     };
     
+    /**
+     * A concept that determines whether the given type is sequential container in the STL library.
+     * @tparam Cont any container (or any type!)
+     * @return whether the given container is vector, deque or array
+     */
+    template<class Cont>
+    concept IsStdSeqCont = requires {typename Cont::value_type;}
+                           and (std::is_same_v<Cont, std::vector<typename Cont::value_type>>
+                                or   std::is_same_v<Cont, std::deque<typename Cont::value_type>>
+                                or (requires (Cont cont) {cont.size();}
+                                    and  std::is_same_v<Cont, std::array<typename Cont::value_type, Cont().size()>>
+                                ));
+    
+    template<class Cont>
+    concept IsStdList = requires {typename Cont::value_type;}
+                        and (std::is_same_v<Cont, std::list<typename Cont::value_type>>
+                             or std::is_same_v<Cont, std::forward_list<typename Cont::value_type>>
+                        );
+    
+    template<class Cont>
+    concept IsStdSet = requires {typename Cont::value_type;}
+                       and (std::is_same_v<Cont, std::set<typename Cont::value_type>>
+                            or std::is_same_v<Cont, std::multiset<typename Cont::value_type>>
+                            or std::is_same_v<Cont, std::unordered_set<typename Cont::value_type>>
+                            or std::is_same_v<Cont, std::unordered_multiset<typename Cont::value_type>>
+                       );
+    
     template<class Cont>
     concept IsStdMap = (requires {typename Cont::key_type; typename Cont::mapped_type;})
     and (std::is_same_v<Cont, std::map      <typename Cont::key_type, typename Cont::mapped_type>>
