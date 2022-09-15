@@ -7,9 +7,12 @@
 #include <concepts>
 #include <utility>
 #include <ranges>
+
+#include <forward_list>
 #include <vector>
 #include <array>
 #include <deque>
+#include <list>
 
 #include "usconcepts.h"
 
@@ -19,7 +22,11 @@ namespace under {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
-        void operator()(Cont &cont, const FuncObj &func) const;
+        void operator()(Cont &cont, const FuncObj &func) const {
+            for (auto &val : cont) {
+                func(val);
+            }
+        }
     };
     
     struct Map {
@@ -47,17 +54,45 @@ namespace under {
         template<typename T, class FuncObj, size_t N>
         requires std::invocable<FuncObj, T>
                  and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept;
+        auto operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept {
+            return std::array<typename std::invoke_result<FuncObj, T>::type, N>();
+        }
         
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
                  and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::vector<T> &cont, const FuncObj &func) const noexcept;
+        auto operator()(const std::vector<T> &cont, const FuncObj &func) const noexcept {
+            return std::vector<typename std::invoke_result<FuncObj, T>::type>(cont.size());
+        }
         
         template<typename T, class FuncObj>
         requires std::invocable<FuncObj, T>
                  and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-        auto operator()(const std::deque<T> &cont, const FuncObj &func) const noexcept;
+        auto operator()(const std::deque<T> &cont, const FuncObj &func) const noexcept {
+            return std::deque<typename std::invoke_result<FuncObj, T>::type>(cont.size());
+        }
+    
+        template<typename T, class FuncObj>
+        requires std::invocable<FuncObj, T>
+                 and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        auto operator()(const std::list<T> &cont, const FuncObj &func) const noexcept {
+            return std::list<typename std::invoke_result<FuncObj, T>::type>(cont.size());
+        }
+    
+        template<typename T, class FuncObj>
+        requires std::invocable<FuncObj, T>
+                 and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
+        auto operator()(const std::forward_list<T> &cont, const FuncObj &func) const noexcept {
+            return std::forward_list<typename std::invoke_result<FuncObj, T>::type>(cont.size());
+        }
+        
+        /**
+         * @todo generate a policy that copying user-defined container
+         */
+    };
+    
+    struct NewCont : public NewDataPolicy {
+    
     };
     
     /**
@@ -68,7 +103,9 @@ namespace under {
      */
     struct Identity {
         template<class T>
-        constexpr T &&operator()(T &&t) const noexcept;
+        constexpr T &&operator()(T &&t) const noexcept {
+            return std::forward<T>(t);
+        }
     };
     
     template<size_t SZ>
@@ -96,16 +133,23 @@ namespace under {
      * @return no_return
      */
     struct Noop {
-        void operator()() const noexcept;
+        void operator()() const noexcept {
+            // do nothing
+        }
         
-        template<class T>
-        void operator()(const T &t) const noexcept;
+        template<class ...Args>
+        void operator()(Args &&...args) const noexcept {
+            // do nothing
+        }
     };
     
     template<class ANewDataPolicy, class AnExecutionPolicy>
     requires ANewDataPolicy::is_new_data_policy
             and AnExecutionPolicy::is_execution_policy
     struct Bloop {
+        using new_data_policy = ANewDataPolicy;
+        using execution_policy = AnExecutionPolicy;
+        
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
@@ -131,6 +175,10 @@ namespace under {
          * @return
          */
         template<class T_cont, class U_cont, class FuncObj>
+        requires std::ranges::range<T_cont>
+                and std::ranges::range<U_cont>
+                and std::is_same<typename std::invoke_result<FuncObj, typename T_cont::value_type>::type,
+                                 typename U_cont::value_type>::value
         auto &operator()(U_cont &u_cont, T_cont &t_cont, const FuncObj &func) const {
             auto it_t = t_cont.begin();
             auto it_u = u_cont.begin();
@@ -154,15 +202,6 @@ namespace under {
     /*
      * Implementation def part start;
      */
-
-    template<class Cont, class FuncObj>
-    requires std::ranges::range<Cont>
-             and std::invocable<FuncObj, typename Cont::value_type &>
-    void Each::operator()(Cont &cont, const FuncObj &func) const {
-        for (auto &val : cont) {
-            func(val);
-        }
-    }
     
     template<class Cont, class FuncObj>
     requires std::ranges::range<Cont>
@@ -181,41 +220,6 @@ namespace under {
         }
         
         return ret;
-    }
-    
-    template<typename T, class FuncObj, size_t N>
-    requires std::invocable<FuncObj, T>
-             and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-    auto under::CopyCont::operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept {
-        return std::array<typename std::invoke_result<FuncObj, T>::type, N>();
-    }
-    
-    template<typename T, class FuncObj>
-    requires std::invocable<FuncObj, T>
-             and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-    auto CopyCont::operator()(const std::vector<T> &cont, const FuncObj &func) const noexcept {
-        return std::vector<typename std::invoke_result<FuncObj, T>::type>(cont.size());
-    }
-    
-    template<typename T, class FuncObj>
-    requires std::invocable<FuncObj, T>
-             and us_concepts::DefaultConstructible<typename std::invoke_result<FuncObj, T>::type>
-    auto CopyCont::operator()(const std::deque<T> &cont, const FuncObj &func) const noexcept {
-        return std::deque<typename std::invoke_result<FuncObj, T>::type>(cont.size());
-    }
-    
-    template<class T>
-    constexpr T &&Identity::operator()(T &&t) const noexcept {
-        return std::forward<T>(t);
-    }
-    
-    void Noop::operator()() const noexcept {
-        // do nothing
-    }
-    
-    template<class T>
-    void Noop::operator()(const T &t) const noexcept {
-        // do nothing
     }
 }
 
