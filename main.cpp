@@ -9,6 +9,17 @@ void f_220916_01() {
             us::tmf::IsStdGMap<std::set<int>> << '\n';
 }
 
+void f_220919_filter_test() {
+    std::deque<int> dq{3, 1, 4, 1, 5, 9, 2};
+    auto filt = __.filter(dq, [](int n) -> int {
+        return n - 1;
+    });
+    
+    for (const auto &v : filt) {
+        std::cout << v << ' ';
+    } std::cout << '\n';
+}
+
 int main() {
     std::vector<int> v{1, 2, 3, 4, 5};
     __.each(v, [](int &n) {n *= 2;});
@@ -48,4 +59,6 @@ int main() {
     for (auto &s : dqdq) {
         std::cout << s << ' ';
     } std::cout << '\n';
+    
+    f_220919_filter_test();
 }

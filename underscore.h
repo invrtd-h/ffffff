@@ -125,7 +125,7 @@ namespace us {
         template<typename T, class FuncObj, size_t N>
         requires std::invocable<FuncObj, T>
                  and tmf::DefaultConstructible<std::invoke_result_t<FuncObj, T>>
-        auto operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept {
+        constexpr auto operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept {
             return std::array<std::invoke_result_t<FuncObj, T>, N>();
         }
         
@@ -142,7 +142,7 @@ namespace us {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                 and tmf::DefaultConstructible<Cont>
-        auto operator()(const Cont &cont, const FuncObj &funcObj) const noexcept {
+        constexpr auto operator()(const Cont &cont, const FuncObj &funcObj) const noexcept {
             return Cont();
         }
     };
@@ -225,19 +225,19 @@ namespace us {
         requires std::ranges::range<T_cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename T_cont::value_type>, bool>
         constexpr auto &operator()(T_cont &res_cont, T_cont &var_cont, const FuncObj &func) const {
-            
+            for (const auto &t : var_cont) {
+                if (func(t)) {
+                    PushPolicy()(res_cont, t);
+                }
+            }
             
             return res_cont;
         }
         
         struct PushPolicy {
-            
-            template<typename T>
-            constexpr void operator()(std::vector<T> &res_cont, T &val) const {
-                res_cont.push_back(val);
-            }
-            template<typename T>
-            constexpr void operator()(std::deque<T> &res_cont, T &val) const {
+            template<template<class> class C, typename T>
+            requires tmf::BackPushable<C>
+            constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.push_back(val);
             }
         };
@@ -265,6 +265,7 @@ namespace us {
     
     using BloopEach = Bloop<IdentityAt<0>, MapExecution>;
     using BloopMap = Bloop<PreAllocCont, MapExecution>;
+    using Filter = Bloop<NewCont, PushExecution>;
     
     /*
      * Struct def part end;
@@ -340,6 +341,8 @@ public:
     
     us::BloopEach        bloop_each;
     us::BloopMap         bloop_map;
+    
+    us::Filter           filter;
 };
 
 inline static underscore __;
