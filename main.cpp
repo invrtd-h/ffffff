@@ -4,6 +4,11 @@
 #include "underscore.h"
 #include "debug_tools.h"
 
+void f_220916_01() {
+    std::cout << std::boolalpha <<
+            us::tmf::IsStdGMap<std::set<int>> << '\n';
+}
+
 int main() {
     std::vector<int> v{1, 2, 3, 4, 5};
     __.each(v, [](int &n) {n *= 2;});
@@ -31,18 +36,16 @@ int main() {
     
     std::cout << '\n' << '\n';
     
-    ForwardingTester ft;
-    ft.catch_instance(us::Identity_at<2>()(1, 3, ft));
-    ft.catch_instance(us::Identity_at<6>()(1, 2, 3, 4, 5, 6, ForwardingTester(), 8));
+    f_220916_01();
     
-    std::cout << us::Identity_at<3>()(1, 2, 3, 4) << '\n';
+    us::lab::Foo()(std::vector<unsigned int>{1, 2, 3, 4, 5, 6});
     
-    us::tmf::replace<double, std::vector<double>, int> vecev{1, 2};
-    std::cout << typeid(vecev).name() << '\n';
+    std::list<long long> dq{1, 10, 100, 1000, 10000};
+    auto dqdq = __.bloop_map(dq, [](long long n) -> std::string {
+        return std::string("s") + std::to_string(n);
+    });
     
-    us::tmf::replace<double, std::array<double, 5>, int> arrrrs{1, 2, 3, 4, 5};
-    std::cout << typeid(arrrrs).name() << ' ' << arrrrs.back() << '\n';
-    
-    conceptcheck_220916();
-    
+    for (auto &s : dqdq) {
+        std::cout << s << ' ';
+    } std::cout << '\n';
 }
