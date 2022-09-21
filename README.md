@@ -12,14 +12,16 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 리턴 타입 추론에 쓰이는 템플릿 메타 함수들과 C++20 Concepts를 지원합니다.
 
-### Policies
+### Small Function Objects
 
-#### NewDataPolicy
-
-* IdentityAt\<N\>
+* IdentityAt
+* CopyAt
+* Noop
+* AlwaysConstant
 
 ### Functions
 
 * _.each()
 * _.map()
-* _.filter()
+* _.filter(), _.reject()
+* _.some(), _.every(), _.none()

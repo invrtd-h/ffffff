@@ -43,20 +43,7 @@ namespace us::smallops {
     using namespace policydef;
     
     /**
-     * Identity-return function obj.
-     * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
-     * @param t any-variable
-     * @return t
-     */
-    struct Identity {
-        template<class T>
-        constexpr T &&operator()(T &&t) const noexcept {
-            return std::forward<T>(t);
-        }
-    };
-    
-    /**
-     * The function object that Returns the SZ-th value by perfect forwarding.
+     * The function object that returns the SZ-th value by perfect forwarding.
      * @example IdentityAt<2>()(1, 2, std::string("a")) \n
      * Returns the rvalue of std::string("a")
      * @tparam SZ the position to return
@@ -87,6 +74,41 @@ namespace us::smallops {
         }
     };
     
+    using Identity = IdentityAt<0>;
+    inline auto identity = Identity();
+    
+    /**
+     * The function object that returns the copy of the SZ-th value.
+     * @tparam SZ the position to return
+     */
+    template<size_t SZ>
+    struct CopyAt : public NewDataPolicy {
+        /**
+         * @tparam T Any-type
+         * @tparam Args Any-parameter-pack
+         * @param t Any-variable
+         * @param args Any-variable-pack
+         * @return std::forward<T>(t)
+         */
+        template<class T, typename ...Args>
+        constexpr auto operator()(T &&t, Args &&...args) const noexcept {
+            return IdentityAt<SZ - 1>()(std::forward<Args>(args)...);
+        }
+    };
+    template<>
+    struct CopyAt<0> : public NewDataPolicy {
+        /**
+         * Template specification of IdentityAt<> (read upward)
+         */
+        template<class T, typename ...Args>
+        constexpr T operator()(T &&t, Args &&...args) const noexcept {
+            return t;
+        }
+    };
+    
+    using Copy = CopyAt<0>;
+    inline auto copy = Copy();
+    
     /**
      * No-operation function obj.
      * @return no_return
@@ -104,6 +126,7 @@ namespace us::smallops {
      */
     template<typename T>
     struct AlwaysConstant {
+        using type = T;
         /**
          * @tparam t the value of the constant to return
          */
@@ -167,13 +190,6 @@ namespace us {
     struct MapExecution : public ExecutionPolicy {
         /**
          * @todo consider if the return value of func is void
-         * @tparam T_cont
-         * @tparam U_cont
-         * @tparam FuncObj
-         * @param u_cont
-         * @param t_cont
-         * @param func
-         * @return
          */
         template<class T_cont, class U_cont, class FuncObj>
         requires std::ranges::range<T_cont>
@@ -242,7 +258,7 @@ namespace us {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
-        inline auto operator()(const Cont &cont, const FuncObj &func) const {
+        constexpr auto operator()(const Cont &cont, const FuncObj &func) const {
             auto ret = PreallocCont()(cont, func);
     
             {
@@ -258,6 +274,80 @@ namespace us {
             return ret;
         }
     };
+    
+    struct Filter {
+        template<class Cont, class FuncObj>
+        requires std::ranges::range<Cont>
+                 and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
+        constexpr auto operator()(const Cont &cont, const FuncObj &func) const {
+            auto ret = NewCont()(cont, smallops::copy);
+            
+            for (const auto &v : cont) {
+                if (func(v)) {
+                    PushPolicy()(ret, v);
+                }
+            }
+            
+            return ret;
+        }
+        
+        struct PushPolicy {
+            /**
+             * If the container has push_back() method, apply it
+             */
+            template<template<class> class C, typename T>
+            requires tmf::BackPushable<C>
+            constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
+                res_cont.push_back(val);
+            }
+        
+            /**
+             * If the container has no push_back() method and has insert() method,
+             * apply it
+             */
+            template<template<class> class C, typename T>
+            requires (not tmf::BackPushable<C> and tmf::Insertable<C>)
+            constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
+                res_cont.insert(val);
+            }
+        };
+    };
+    
+    template<class FuncObj>
+    struct FilterWith {
+        template<class Cont>
+        constexpr auto operator()(Cont &cont) const {
+            return Filter()(cont, FuncObj());
+        }
+    };
+    
+    struct Reject {
+        template<class Cont, class FuncObj>
+        requires std::ranges::range<Cont>
+                 and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
+        constexpr auto operator()(const Cont &cont, const FuncObj &func) const {
+            return Filter()(cont, std::not_fn(func));
+        }
+    };
+    
+    template<bool func_ret, bool ret>
+    struct LogicMake {
+        template<class Cont, class FuncObj>
+        requires std::ranges::range<Cont>
+                 and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
+        constexpr bool operator()(const Cont &cont, const FuncObj &func) const {
+            for (auto &v : cont) {
+                if (static_cast<bool>(func(v)) == func_ret) {
+                    return ret;
+                }
+            }
+            return not ret;
+        }
+    };
+    
+    using Some = LogicMake<true, true>;
+    using Every = LogicMake<false, false>;
+    using None = LogicMake<true, false>;
     
     template<class ANewDataPolicy, class AnExecutionPolicy>
     requires ANewDataPolicy::is_new_data_policy
@@ -318,12 +408,18 @@ namespace us::lab {
 
 class FFFFFF {
 public:
-    us::Each             each;
-    us::Map              map;
+    us::Each            each;
+    us::Map             map;
+    us::Filter          filter;
+    us::Reject          reject;
     
-    us::BloopEach        bloop_each;
-    us::BloopMap         bloop_map;
-    us::BloopFilter      bloop_filter;
+    us::Some            some;
+    us::Every           every;
+    us::None            none;
+    
+    us::BloopEach       bloop_each;
+    us::BloopMap        bloop_map;
+    us::BloopFilter     bloop_filter;
 };
 
 inline static FFFFFF ffffff;

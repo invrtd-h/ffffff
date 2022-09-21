@@ -11,11 +11,20 @@ void f_220916_01() {
 
 void f_220919_filter_test() {
     std::deque<int> dq{3, 1, 4, 1, 5, 9, 2};
-    auto filt = ffffff.bloop_filter(dq, [](int n) -> int {
+    auto filt = ffffff.filter(dq, [](int n) -> int {
         return n - 1;
     });
     
     for (const auto &v : filt) {
+        std::cout << v << ' ';
+    } std::cout << '\n';
+    
+    std::vector<int> vec{5, 8, 7, 7, 3, 3, 8, 5};
+    auto rej = ffffff.reject(vec, [](int n) -> bool {
+        return n > 5;
+    });
+    
+    for (const auto &v : rej) {
         std::cout << v << ' ';
     } std::cout << '\n';
 }
