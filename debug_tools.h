@@ -34,5 +34,44 @@ public:
     }
 };
 
+template<typename T>
+class TD;
+
+template<class Cont>
+void print(Cont &&cont) {
+    for (auto &&c : cont) {
+        std::cout << c << ' ';
+    } std::cout << '\n';
+}
+
+template<class Cont>
+void print(const Cont &&cont) {
+    for (auto &&c : cont) {
+        std::cout << c << ' ';
+    } std::cout << '\n';
+}
+
+template<template<class> class C>
+void f220921() {
+    std::cout << std::boolalpha;
+    
+    C<int> cont{1, 1, 2, 3, 5, 8, 13, 21, 34, 55};
+    const C<int> ccont = cont;
+    
+    print(cont);
+    print(ccont);
+    
+    print(fff::filter(ccont, [](const auto &s) {
+        return s % 2;
+    }));
+    
+    print(fff::reject(ccont, [](const auto &s) {
+        return s % 2;
+    }));
+    
+    std::cout << fff::every(ccont, [](auto &s) {
+        return s % 2;
+    }) << '\n';
+}
 
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H

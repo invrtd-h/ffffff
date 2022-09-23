@@ -22,11 +22,7 @@
 
 #include "us_tmf.h"
 
-namespace us::lab {
-
-}
-
-namespace us::policydef {
+namespace fff::impl::policydef {
     struct NewDataPolicy {
         static constexpr bool is_new_data_policy = true;
     };
@@ -39,7 +35,7 @@ namespace us::policydef {
 /**
  * Small operations
  */
-namespace us::smallops {
+namespace fff::impl::smallops {
     using namespace policydef;
     
     /**
@@ -58,7 +54,7 @@ namespace us::smallops {
          * @param args Any-variable-pack
          * @return std::forward<T>(t)
          */
-        template<class T, typename ...Args>
+        template<class T, typename... Args>
         constexpr auto &&operator()(T &&t, Args &&...args) const noexcept {
             return IdentityAt<SZ - 1>()(std::forward<Args>(args)...);
         }
@@ -151,7 +147,73 @@ namespace us::smallops {
     inline auto always_negative = AlwaysNegative();
 }
 
-namespace us {
+namespace fff::impl::util {
+    template<class FuncObj>
+    requires std::invocable<FuncObj>
+    class Once {
+        FuncObj f;
+        mutable bool flag;
+        mutable std::invoke_result_t<FuncObj> memo;
+    public:
+        constexpr explicit Once(const FuncObj &f) noexcept : f(f), flag(false) {}
+        constexpr explicit Once(FuncObj &&f) noexcept : f(std::move(f)), flag(false) {}
+        
+        constexpr std::invoke_result_t<FuncObj> operator()() const
+        noexcept(noexcept(f()))
+        {
+            if (flag) {
+                return memo;
+            }
+            flag = true;
+            return memo = f();
+        }
+    };
+    
+    template<class Fn_1, class Fn_2>
+    class Fconcat_Impl {
+        Fn_1 f_1;
+        Fn_2 f_2;
+    public:
+        constexpr explicit Fconcat_Impl(Fn_1 &&f_1, Fn_2 &&f_2) noexcept
+                : f_1(std::move(f_1)), f_2(std::move(f_2)) {}
+        constexpr explicit Fconcat_Impl(const Fn_1 &f_1, Fn_2 &&f_2) noexcept
+                : f_1(f_1), f_2(std::move(f_2)) {}
+        constexpr explicit Fconcat_Impl(Fn_1 &&f_1, const Fn_2 &f_2) noexcept
+                : f_1(std::move(f_1)), f_2(f_2) {}
+        constexpr explicit Fconcat_Impl(const Fn_1 &f_1, const Fn_2 &f_2) noexcept
+                : f_1(f_1), f_2(f_2) {}
+    
+        template<class... Args>
+        requires std::invocable<Fn_1, Args...>
+        constexpr auto operator()(Args &&...args) const
+        noexcept(noexcept(f_1(std::forward<Args>(args)...)))
+        {
+            return f_1(std::forward<Args>(args)...);
+        }
+    
+        template<class... Args>
+        requires (not std::invocable<Fn_1, Args...> and std::invocable<Fn_2, Args...>)
+        constexpr auto operator()(Args &&...args) const
+        noexcept(noexcept(f_2(std::forward<Args>(args)...)))
+        {
+            return f_2(std::forward<Args>(args)...);
+        }
+    };
+    
+    template<class F1, class F2>
+    inline constexpr auto make_f_concat(F1 &&f1, F2 &&f2) noexcept {
+        return Fconcat_Impl(std::forward<F1>(f1), std::forward<F2>(f2));
+    }
+    
+    template<class F1, class F2, class... Fp>
+    inline constexpr auto make_f_concat(F1 &&f1, F2 &&f2, Fp &&...fp) noexcept {
+        return Fconcat_Impl(std::forward<F1>(f1), make_f_concat(std::forward<F2>(f2), std::forward<Fp>(fp)...));
+    }
+    
+    
+}
+
+namespace fff::impl {
     using namespace smallops;
     
     /**
@@ -196,7 +258,9 @@ namespace us {
                 and std::ranges::range<U_cont>
                 and std::is_same_v<typename std::invoke_result<FuncObj, typename T_cont::value_type>::type,
                                  typename U_cont::value_type>
-        constexpr auto &operator()(U_cont &u_cont, T_cont &t_cont, const FuncObj &func) const {
+        constexpr auto &operator()(U_cont &u_cont, T_cont &t_cont, const FuncObj &func) const
+        noexcept(noexcept(func(t_cont[0])))
+        {
             auto it_t = t_cont.begin();
             auto it_u = u_cont.begin();
             
@@ -213,7 +277,9 @@ namespace us {
         template<class T_cont, class FuncObj>
         requires std::ranges::range<T_cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename T_cont::value_type>, bool>
-        constexpr auto &operator()(T_cont &res_cont, T_cont &var_cont, const FuncObj &func) const {
+        constexpr auto &operator()(T_cont &res_cont, T_cont &var_cont, const FuncObj &func) const
+        noexcept(noexcept(func(var_cont[0])))
+        {
             for (const auto &t : var_cont) {
                 if (func(t)) {
                     PushPolicy()(res_cont, t);
@@ -249,7 +315,9 @@ namespace us {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
-        constexpr void operator()(Cont &cont, const FuncObj &func) const {
+        constexpr void operator()(Cont &cont, const FuncObj &func) const
+        noexcept(noexcept(func(cont[0])))
+        {
             std::ranges::for_each(cont, func);
         }
     };
@@ -258,7 +326,9 @@ namespace us {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
-        constexpr auto operator()(const Cont &cont, const FuncObj &func) const {
+        constexpr auto operator()(const Cont &cont, const FuncObj &func) const
+        noexcept(noexcept(func(cont[0])))
+        {
             auto ret = PreallocCont()(cont, func);
     
             {
@@ -278,8 +348,10 @@ namespace us {
     struct Filter {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
-                 and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
-        constexpr auto operator()(const Cont &cont, const FuncObj &func) const {
+                 and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type &>, bool>
+        constexpr auto operator()(const Cont &cont, const FuncObj &func) const
+        noexcept(noexcept(func(cont[0])))
+        {
             auto ret = NewCont()(cont, smallops::copy);
             
             for (const auto &v : cont) {
@@ -316,7 +388,9 @@ namespace us {
     template<class FuncObj>
     struct FilterWith {
         template<class Cont>
-        constexpr auto operator()(Cont &cont) const {
+        constexpr auto operator()(Cont &cont) const
+        noexcept(noexcept(FuncObj()(cont[0])))
+        {
             return Filter()(cont, FuncObj());
         }
     };
@@ -325,7 +399,9 @@ namespace us {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
-        constexpr auto operator()(const Cont &cont, const FuncObj &func) const {
+        constexpr auto operator()(const Cont &cont, const FuncObj &func) const
+        noexcept(noexcept(func(cont[0])))
+        {
             return Filter()(cont, std::not_fn(func));
         }
     };
@@ -334,8 +410,11 @@ namespace us {
     struct LogicMake {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
-                 and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
-        constexpr bool operator()(const Cont &cont, const FuncObj &func) const {
+                 and std::convertible_to<std::invoke_result_t
+                         <FuncObj, std::remove_cv_t<typename Cont::value_type &>>, bool>
+        constexpr bool operator()(const Cont &cont, const FuncObj &func) const
+        noexcept(noexcept(func(cont[0])))
+        {
             for (auto &v : cont) {
                 if (static_cast<bool>(func(v)) == func_ret) {
                     return ret;
@@ -377,7 +456,7 @@ namespace us {
 /**
  * The laboratory : New features are tested in this space.
  */
-namespace us::lab {
+namespace impl::lab {
     /**
      * get class Cont == C<T>, typename T
      * return C<U>
@@ -404,25 +483,49 @@ namespace us::lab {
     };
 }
 
-#include "deprecated.h"
-
 class FFFFFF {
 public:
-    us::Each            each;
-    us::Map             map;
-    us::Filter          filter;
-    us::Reject          reject;
+    fff::impl::Each            each;
+    fff::impl::Map             map;
+    fff::impl::Filter          filter;
+    fff::impl::Reject          reject;
     
-    us::Some            some;
-    us::Every           every;
-    us::None            none;
+    fff::impl::Some            some;
+    fff::impl::Every           every;
+    fff::impl::None            none;
     
-    us::BloopEach       bloop_each;
-    us::BloopMap        bloop_map;
-    us::BloopFilter     bloop_filter;
+    fff::impl::BloopEach       bloop_each;
+    fff::impl::BloopMap        bloop_map;
+    fff::impl::BloopFilter     bloop_filter;
 };
 
 inline static FFFFFF ffffff;
+
+namespace fff {
+    inline impl::Each                   each;
+    inline impl::Map                    map;
+    inline impl::Filter                 filter;
+    inline impl::Reject                 reject;
+    
+    inline impl::Some                   some;
+    inline impl::Every                  every;
+    inline impl::None                   none;
+    
+    inline impl::AlwaysPositive         always_positive;
+    
+    template<std::size_t SZ>
+    inline impl::IdentityAt<SZ>         identity_at;
+    
+    template<std::size_t SZ>
+    inline impl::CopyAt<SZ>             copy_at;
+    
+    template<class FuncObj>
+    inline auto once(FuncObj &&f) noexcept {
+        return impl::util::Once<FuncObj>(std::forward<FuncObj>(f));
+    }
+    
+    using impl::util::make_f_concat;
+}
 
 #endif //UNDERSCORE_CPP_FFFFFF_H
 

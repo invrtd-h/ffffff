@@ -1,7 +1,7 @@
 #ifndef UNDERSCORE_CPP_US_TMF_H
 #define UNDERSCORE_CPP_US_TMF_H
 
-namespace us::tmf {
+namespace fff::impl::tmf {
     
     template<typename T>
     concept Printable = requires (T t) {std::cout << t;};
