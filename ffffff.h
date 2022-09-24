@@ -8,17 +8,7 @@
 #include <concepts>
 #include <utility>
 #include <ranges>
-
-#include <vector>
-#include <array>
-#include <deque>
-#include <forward_list>
-#include <list>
-
-#include <set>
-#include <map>
-#include <unordered_set>
-#include <unordered_map>
+#include <tuple>
 
 #include "us_tmf.h"
 
@@ -35,7 +25,7 @@ namespace fff::impl::policydef {
 /**
  * Small operations
  */
-namespace fff::impl::smallops {
+namespace fff::impl::elem {
     using namespace policydef;
     
     /**
@@ -59,6 +49,7 @@ namespace fff::impl::smallops {
             return IdentityAt<SZ - 1>()(std::forward<Args>(args)...);
         }
     };
+    
     template<>
     struct IdentityAt<0> : public NewDataPolicy {
         /**
@@ -72,6 +63,9 @@ namespace fff::impl::smallops {
     
     using Identity = IdentityAt<0>;
     inline auto identity = Identity();
+}
+
+namespace fff::impl::elem {
     
     /**
      * The function object that returns the copy of the SZ-th value.
@@ -148,19 +142,21 @@ namespace fff::impl::smallops {
 }
 
 namespace fff::impl::util {
-    template<class FuncObj>
-    requires std::invocable<FuncObj>
-    class Once {
-        FuncObj f;
-        mutable bool flag;
-        mutable std::invoke_result_t<FuncObj> memo;
-    public:
-        constexpr explicit Once(const FuncObj &f) noexcept : f(f), flag(false) {}
-        constexpr explicit Once(FuncObj &&f) noexcept : f(std::move(f)), flag(false) {}
+    template<class Fn>
+    requires (not std::is_void_v<std::invoke_result_t<Fn>>)
+    class Once_nv {
+        friend class Once;
         
-        constexpr std::invoke_result_t<FuncObj> operator()() const
-        noexcept(noexcept(f()))
-        {
+        Fn f;
+        mutable bool flag;
+        mutable std::invoke_result_t<Fn> memo;
+        
+        constexpr explicit Once_nv(const Fn &f) noexcept: f(f), flag(false) {}
+        constexpr explicit Once_nv(Fn &&f) noexcept: f(std::move(f)), flag(false) {}
+        
+    public:
+        constexpr std::invoke_result_t<Fn> operator()() const
+        noexcept(noexcept(f())) {
             if (flag) {
                 return memo;
             }
@@ -169,18 +165,54 @@ namespace fff::impl::util {
         }
     };
     
+    template<class Fn>
+    requires std::is_void_v<std::invoke_result_t<Fn>>
+    class Once_v {
+        friend class Once;
+        
+        Fn f;
+        mutable bool flag;
+        
+        constexpr explicit Once_v(const Fn &f) noexcept: f(f), flag(false) {}
+        constexpr explicit Once_v(Fn &&f) noexcept: f(std::move(f)), flag(false) {}
+        
+    public:
+        constexpr void operator()() const noexcept(noexcept(f())) {
+            if (flag) {
+                return;
+            }
+            flag = true;
+            f();
+        }
+    };
+    
+    struct Once {
+        template<class F>
+        requires std::invocable<F>
+        constexpr auto operator()(F &&f) noexcept {
+            if constexpr (not std::is_void_v<std::invoke_result_t<F>>) {
+                return Once_nv<F>(std::forward<F>(f));
+            } else {
+                return Once_v<F>(std::forward<F>(f));
+            }
+        }
+    };
+}
+
+namespace fff::impl::elem {
+    
     template<class Fn_1, class Fn_2>
-    class Fconcat_Impl {
+    class Fconcat {
         Fn_1 f_1;
         Fn_2 f_2;
     public:
-        constexpr explicit Fconcat_Impl(Fn_1 &&f_1, Fn_2 &&f_2) noexcept
+        constexpr explicit Fconcat(Fn_1 &&f_1, Fn_2 &&f_2) noexcept
                 : f_1(std::move(f_1)), f_2(std::move(f_2)) {}
-        constexpr explicit Fconcat_Impl(const Fn_1 &f_1, Fn_2 &&f_2) noexcept
+        constexpr explicit Fconcat(const Fn_1 &f_1, Fn_2 &&f_2) noexcept
                 : f_1(f_1), f_2(std::move(f_2)) {}
-        constexpr explicit Fconcat_Impl(Fn_1 &&f_1, const Fn_2 &f_2) noexcept
+        constexpr explicit Fconcat(Fn_1 &&f_1, const Fn_2 &f_2) noexcept
                 : f_1(std::move(f_1)), f_2(f_2) {}
-        constexpr explicit Fconcat_Impl(const Fn_1 &f_1, const Fn_2 &f_2) noexcept
+        constexpr explicit Fconcat(const Fn_1 &f_1, const Fn_2 &f_2) noexcept
                 : f_1(f_1), f_2(f_2) {}
     
         template<class... Args>
@@ -200,21 +232,22 @@ namespace fff::impl::util {
         }
     };
     
-    template<class F1, class F2>
-    inline constexpr auto make_f_concat(F1 &&f1, F2 &&f2) noexcept {
-        return Fconcat_Impl(std::forward<F1>(f1), std::forward<F2>(f2));
-    }
+    struct MakeConcat {
+        template<class F1, class F2>
+        constexpr auto operator()(F1 &&f1, F2 &&f2) noexcept {
+            return Fconcat(std::forward<F1>(f1), std::forward<F2>(f2));
+        }
     
-    template<class F1, class F2, class... Fp>
-    inline constexpr auto make_f_concat(F1 &&f1, F2 &&f2, Fp &&...fp) noexcept {
-        return Fconcat_Impl(std::forward<F1>(f1), make_f_concat(std::forward<F2>(f2), std::forward<Fp>(fp)...));
-    }
-    
+        template<class F1, class F2, class... Fp>
+        constexpr auto operator()(F1 &&f1, F2 &&f2, Fp &&...fp) noexcept {
+            return Fconcat(std::forward<F1>(f1), operator()(std::forward<F2>(f2), std::forward<Fp>(fp)...));
+        }
+    };
     
 }
 
 namespace fff::impl {
-    using namespace smallops;
+    using namespace elem;
     
     /**
      * Making Result-Container function obj.
@@ -352,7 +385,7 @@ namespace fff::impl {
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
         noexcept(noexcept(func(cont[0])))
         {
-            auto ret = NewCont()(cont, smallops::copy);
+            auto ret = NewCont()(cont, elem::copy);
             
             for (const auto &v : cont) {
                 if (func(v)) {
@@ -483,24 +516,6 @@ namespace impl::lab {
     };
 }
 
-class FFFFFF {
-public:
-    fff::impl::Each            each;
-    fff::impl::Map             map;
-    fff::impl::Filter          filter;
-    fff::impl::Reject          reject;
-    
-    fff::impl::Some            some;
-    fff::impl::Every           every;
-    fff::impl::None            none;
-    
-    fff::impl::BloopEach       bloop_each;
-    fff::impl::BloopMap        bloop_map;
-    fff::impl::BloopFilter     bloop_filter;
-};
-
-inline static FFFFFF ffffff;
-
 namespace fff {
     inline impl::Each                   each;
     inline impl::Map                    map;
@@ -519,12 +534,8 @@ namespace fff {
     template<std::size_t SZ>
     inline impl::CopyAt<SZ>             copy_at;
     
-    template<class FuncObj>
-    inline auto once(FuncObj &&f) noexcept {
-        return impl::util::Once<FuncObj>(std::forward<FuncObj>(f));
-    }
-    
-    using impl::util::make_f_concat;
+    inline impl::util::Once             once;
+    inline impl::elem::MakeConcat       make_concat;
 }
 
 #endif //UNDERSCORE_CPP_FFFFFF_H

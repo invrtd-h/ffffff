@@ -11,6 +11,8 @@ int foo(int n) noexcept {
     return n;
 }
 
+struct Foo {};
+
 int main() {
     f220921<std::vector>();
     
@@ -23,7 +25,7 @@ int main() {
     
     auto print_str = [](const std::string &s) {std::cout << s << '\n';};
     
-    auto concated = fff::make_f_concat(
+    auto concated = fff::make_concat(
             [](int n) {std::cout << n << '\n';},
             print_str,
             [](std::pair<int, int> p) {std::cout << p.first << ' ' << p.second << '\n';}

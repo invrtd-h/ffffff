@@ -25,3 +25,8 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 * _.map()
 * _.filter(), _.reject()
 * _.some(), _.every(), _.none()
+
+### Higher Order Functions
+
+* _.once()
+* make_f_concat()
