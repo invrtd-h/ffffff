@@ -11,7 +11,16 @@ int foo(int n) noexcept {
     return n;
 }
 
-struct Foo {};
+struct Bar {
+
+};
+
+struct Foo {
+    Bar bar1, bar2, bar3;
+    bool operator()() const noexcept {
+        return true;
+    }
+};
 
 int main() {
     f220921<std::vector>();
@@ -34,4 +43,10 @@ int main() {
     concated(1);
     concated("String");
     concated(std::make_pair(41771, 7110));
+    
+    auto count = fff::count([](int n) {return n * n;});
+    
+    std::cout << count(10) << ' ' << count(20) << ' ' << count(30) << ' ' << count.get_count() << '\n';
+    
+    std::cout << std::boolalpha << std::is_empty_v<Foo> << ' ' << sizeof(Foo) << '\n';
 }
