@@ -16,8 +16,7 @@
 
 #include "us_tmf.h"
 
-namespace fff::impl::pol {
-    
+namespace fff::pol {
     /**
      * @deprecated since we do not use Bloop class
      * @see class Bloop
@@ -43,9 +42,7 @@ namespace fff::impl::pol {
     enum class uniq_addr {YES, NO};
 }
 
-namespace fff::impl::elem {
-    using namespace pol;
-    
+namespace fff {
     /**
      * The function object that returns the SZ-th value by perfect forwarding.
      * @example IdentityAt\<2>()(1, 2, std::string("a")) \n
@@ -54,7 +51,7 @@ namespace fff::impl::elem {
      * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
      */
     template<size_t SZ>
-    struct IdentityAt : public NewDataPolicy {
+    struct IdentityAt : public pol::NewDataPolicy {
         /**
          * @tparam T Any-type
          * @tparam Args Any-parameter-pack
@@ -69,7 +66,7 @@ namespace fff::impl::elem {
     };
     
     template<>
-    struct IdentityAt<0> : public NewDataPolicy {
+    struct IdentityAt<0> : public pol::NewDataPolicy {
         /**
          * Template specification of IdentityAt<> (read upward)
          */
@@ -82,14 +79,14 @@ namespace fff::impl::elem {
     using Identity = IdentityAt<0>;
 }
 
-namespace fff::impl::elem {
+namespace fff {
     
     /**
      * The function object that returns the copy of the SZ-th value.
      * @tparam SZ the position to return
      */
     template<size_t SZ>
-    struct CopyAt : public NewDataPolicy {
+    struct CopyAt : public pol::NewDataPolicy {
         /**
          * @tparam T Any-type
          * @tparam Args Any-parameter-pack
@@ -102,8 +99,9 @@ namespace fff::impl::elem {
             return IdentityAt<SZ - 1>()(std::forward<Args>(args)...);
         }
     };
+    
     template<>
-    struct CopyAt<0> : public NewDataPolicy {
+    struct CopyAt<0> : public pol::NewDataPolicy {
         /**
          * Template specification of IdentityAt<> (read upward)
          */
@@ -115,6 +113,9 @@ namespace fff::impl::elem {
     
     using Copy = CopyAt<0>;
     inline auto copy = Copy();
+}
+
+namespace fff {
     
     /**
      * No-operation function obj.
@@ -131,6 +132,9 @@ namespace fff::impl::elem {
             // do nothing
         }
     };
+}
+
+namespace fff {
     
     /**
      * A callable that always Returns a constant.
@@ -158,12 +162,9 @@ namespace fff::impl::elem {
     
     using AlwaysPositive = AlwaysConstant<bool>::Returns<true>;
     using AlwaysNegative = AlwaysConstant<bool>::Returns<false>;
-    
-    inline auto always_positive = AlwaysPositive();
-    inline auto always_negative = AlwaysNegative();
 }
 
-namespace fff::impl::util {
+namespace fff {
 
     /**
      * A callable that invokes the inner function only once_factory.
@@ -281,7 +282,7 @@ namespace fff::impl::util {
     };
 }
 
-namespace fff::impl::util {
+namespace fff {
     template<class Fn, auto UA = pol::uniq_addr::YES>
     class Count {
         friend class CountFactory;
@@ -340,15 +341,14 @@ namespace fff::impl::util {
     };
 }
 
-namespace fff::impl::util {
-    
+namespace fff {
     template<typename T>
     class Maybe : public std::optional<T> {
     public:
         template<class ...Args>
         requires std::is_constructible_v<std::optional<T>, Args...>
-        constexpr Maybe<T>(Args &&...args) : std::optional<T>(std::forward<Args>(args)...) {}
-    
+        constexpr Maybe<T>(Args &&...args) noexcept : std::optional<T>(std::forward<Args>(args)...) {}
+        
         template<class F>
         requires std::invocable<F, T>
         constexpr Maybe<T> operator>>(F &&f) const
@@ -360,7 +360,7 @@ namespace fff::impl::util {
                 return std::nullopt;
             }
         }
-    
+        
         template<class F>
         requires std::invocable<F, T &>
         constexpr Maybe<T> &operator<<(F &&f)
@@ -372,7 +372,10 @@ namespace fff::impl::util {
             return *this;
         }
     };
-    
+}
+
+namespace fff {
+
     struct MaybeFactory {
         template<typename T>
         constexpr auto operator()(T &&t) const noexcept {
@@ -386,7 +389,7 @@ namespace fff::impl::util {
     };
 }
 
-namespace fff::impl::elem {
+namespace fff {
     
     template<class Fn_1, class Fn_2>
     class Fconcat {
@@ -437,13 +440,7 @@ namespace fff::impl::elem {
     };
 }
 
-namespace fff::impl::elem {
-    
-
-}
-
-namespace fff::impl {
-    using namespace elem;
+namespace fff {
     
     /**
      * Making Result-Container function obj.
@@ -452,7 +449,7 @@ namespace fff::impl {
      * @return any std::(container) with type U
      */
     
-    struct PreallocCont : public NewDataPolicy {
+    struct PreallocCont : public pol::NewDataPolicy {
         template<typename T, class FuncObj, size_t N>
         requires std::invocable<FuncObj, T>
                  and tmf::DefaultConstructible<std::invoke_result_t<FuncObj, T>>
@@ -469,7 +466,7 @@ namespace fff::impl {
         }
     };
     
-    struct NewCont : public NewDataPolicy {
+    struct NewCont : public pol::NewDataPolicy {
         template<class Cont, class FuncObj>
         requires std::ranges::range<Cont>
                 and tmf::DefaultConstructible<Cont>
@@ -478,7 +475,7 @@ namespace fff::impl {
         }
     };
     
-    struct MapExecution : public ExecutionPolicy {
+    struct MapExecution : public pol::ExecutionPolicy {
         /**
          * @todo consider if the return value of func is void
          */
@@ -502,7 +499,7 @@ namespace fff::impl {
         }
     };
     
-    struct PushExecution : public ExecutionPolicy {
+    struct PushExecution : public pol::ExecutionPolicy {
         template<class T_cont, class FuncObj>
         requires std::ranges::range<T_cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename T_cont::value_type>, bool>
@@ -581,7 +578,7 @@ namespace fff::impl {
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
         noexcept(noexcept(func(cont[0])))
         {
-            auto ret = NewCont()(cont, elem::copy);
+            auto ret = NewCont()(cont, copy);
             
             for (const auto &v : cont) {
                 if (func(v)) {
@@ -713,29 +710,29 @@ namespace impl::lab {
 }
 
 namespace fff {
-    inline impl::Each                   each;
-    inline impl::Map                    map;
-    inline impl::Filter                 filter;
-    inline impl::Reject                 reject;
+    inline Each                     each;
+    inline Map                      map;
+    inline Filter                   filter;
+    inline Reject                   reject;
     
-    inline impl::Some                   some;
-    inline impl::Every                  every;
-    inline impl::None                   none;
+    inline Some                     some;
+    inline Every                    every;
+    inline None                     none;
     
-    inline impl::AlwaysPositive         always_positive;
-    inline impl::AlwaysNegative         always_negative;
-    
-    template<std::size_t SZ>
-    inline impl::IdentityAt<SZ>         identity_at;
+    inline AlwaysPositive           always_positive;
+    inline AlwaysNegative           always_negative;
     
     template<std::size_t SZ>
-    inline impl::CopyAt<SZ>             copy_at;
+    inline IdentityAt<SZ>           identity_at;
     
-    inline impl::util::OnceFactory      once_factory;
-    inline impl::util::CountFactory     count_factory;
-    inline impl::util::MaybeFactory     maybe_factory;
+    template<std::size_t SZ>
+    inline CopyAt<SZ>               copy_at;
     
-    inline impl::elem::ConcatFactory    concat_factory;
+    inline OnceFactory              once_factory;
+    inline CountFactory             count_factory;
+    inline MaybeFactory             maybe_factory;
+    
+    inline ConcatFactory            concat_factory;
 }
 
 #endif //UNDERSCORE_CPP_FFFFFF_H

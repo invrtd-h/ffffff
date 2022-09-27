@@ -2,6 +2,8 @@
 
 JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트입니다.
 
+왜 이름이 FFFFFF일까요? #ffffff는 흰색이기 때문입니다. 사실 별 의미 없습니다.
+
 ### underscore.js 라이브러리
 
 함수형 프로그래밍을 지원하는 JS의 라이브러리입니다. 
@@ -30,5 +32,8 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 * _.once_factory()
 * _.count_factory()
-* _.maybe_factory()
 * _.concat_factory()
+
+### Monads
+
+* _.maybe_factory()
