@@ -28,5 +28,7 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 ### Higher Order Functions
 
-* _.once()
-* make_f_concat()
+* _.once_factory()
+* _.count_factory()
+* _.maybe_factory()
+* _.concat_factory()

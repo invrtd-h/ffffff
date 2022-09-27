@@ -24,29 +24,16 @@ struct Foo {
 
 int main() {
     f220921<std::vector>();
+    once_test();
+    concat_test();
     
-    auto once = fff::once([]() noexcept {
-        std::cout << "Hello\n";
-        return 3;
-    });
-    
-    once(); once();
-    
-    auto print_str = [](const std::string &s) {std::cout << s << '\n';};
-    
-    auto concated = fff::make_concat(
-            [](int n) {std::cout << n << '\n';},
-            print_str,
-            [](std::pair<int, int> p) {std::cout << p.first << ' ' << p.second << '\n';}
-    );
-    
-    concated(1);
-    concated("String");
-    concated(std::make_pair(41771, 7110));
-    
-    auto count = fff::count([](int n) {return n * n;});
+    auto count = fff::count_factory([](int n) {return n * n;});
     
     std::cout << count(10) << ' ' << count(20) << ' ' << count(30) << ' ' << count.get_count() << '\n';
     
-    std::cout << std::boolalpha << std::is_empty_v<Foo> << ' ' << sizeof(Foo) << '\n';
+    auto may = fff::maybe_factory(1);
+    std::cout << (may >> [](int n) {return 3 * n;} >> [](int n) {return 3 * n;}).get().value() << ' '
+        << may.get().value() << ' '
+        << (may << [](int &n) {return n *= 69;}).get().value() << ' '
+        << may.get().value() << '\n';
 }

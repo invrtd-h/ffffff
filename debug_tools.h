@@ -74,4 +74,27 @@ void f220921() {
     }) << '\n';
 }
 
+void once_test() {
+    auto once = fff::once_factory([]() noexcept {
+        std::cout << "Hello\n";
+        return 'x';
+    });
+    
+    once(); once();
+}
+
+void concat_test() {
+    auto print_str = [](const std::string &s) {std::cout << s << '\n';};
+    
+    auto concated = fff::concat_factory(
+            [](int n) {std::cout << n << '\n';},
+            print_str,
+            [](std::pair<int, int> p) {std::cout << p.first << ' ' << p.second << '\n';}
+    );
+    
+    concated(1);
+    concated("String");
+    concated(std::make_pair(41771, 7110));
+}
+
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H
