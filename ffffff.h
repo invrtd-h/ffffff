@@ -343,36 +343,19 @@ namespace fff::impl::util {
 namespace fff::impl::util {
     
     template<typename T>
-    class Maybe {
-        static_assert(not std::is_same_v<std::remove_cv_t<T>, std::nullopt_t>);
-        static_assert(not std::is_same_v<std::remove_cv_t<T>, std::in_place_t>);
-        static_assert(not std::is_reference_v<T>);
-        
-        std::optional<T> data;
-        
+    class Maybe : public std::optional<T> {
     public:
-        using value_type = T;
-        
-        constexpr Maybe() : data(std::nullopt) {}
-        constexpr Maybe(std::nullopt_t nullopt) : data(nullopt) {}
-        constexpr Maybe(const T &t) : data(t) {}
-        constexpr Maybe(T &&t) : data(std::move(t)) {}
-        
-        [[nodiscard]] constexpr bool has_value() const noexcept {
-            return data.has_value();
-        }
-        
-        constexpr std::optional<T> &get() noexcept {
-            return data;
-        }
+        template<class ...Args>
+        requires std::is_constructible_v<std::optional<T>, Args...>
+        constexpr Maybe<T>(Args &&...args) : std::optional<T>(std::forward<Args>(args)...) {}
     
         template<class F>
         requires std::invocable<F, T>
         constexpr Maybe<T> operator>>(F &&f) const
-        noexcept(noexcept(f(data.value())))
+        noexcept(noexcept(f(this->value())))
         {
-            if (data.has_value()) {
-                return f(data.value());
+            if (this->has_value()) {
+                return f(this->value());
             } else {
                 return std::nullopt;
             }
@@ -381,10 +364,10 @@ namespace fff::impl::util {
         template<class F>
         requires std::invocable<F, T &>
         constexpr Maybe<T> &operator<<(F &&f)
-        noexcept(noexcept(f(data.value())))
+        noexcept(noexcept(f(this->value())))
         {
-            if (data.has_value()) {
-                f(data.value());
+            if (this->has_value()) {
+                f(this->value());
             }
             return *this;
         }
@@ -395,7 +378,7 @@ namespace fff::impl::util {
         constexpr auto operator()(T &&t) const noexcept {
             return Maybe<T>(std::forward<T>(t));
         }
-    
+        
         template<typename T>
         constexpr auto make() const noexcept {
             return Maybe<T>();

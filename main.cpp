@@ -32,8 +32,8 @@ int main() {
     std::cout << count(10) << ' ' << count(20) << ' ' << count(30) << ' ' << count.get_count() << '\n';
     
     auto may = fff::maybe_factory(1);
-    std::cout << (may >> [](int n) {return 3 * n;} >> [](int n) {return 3 * n;}).get().value() << ' '
-        << may.get().value() << ' '
-        << (may << [](int &n) {return n *= 69;}).get().value() << ' '
-        << may.get().value() << '\n';
+    std::cout << (may >> [](int n) {return 3 * n;} >> [](int n) {return 3 * n;}).value() << ' '
+              << may.value() << ' '
+              << (may << [](int &n) {return n *= 69;}).value() << ' '
+              << may.value() << '\n';
 }
