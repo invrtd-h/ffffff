@@ -4,17 +4,12 @@
 #include "ffffff.h"
 #include "debug_tools.h"
 
-template<int N>
-auto add = [](int n) -> int {return n + N;};
-
-template<int N>
-auto multiply = [](int n) -> int {return n * N;};
-
-template<int N>
-auto add_r = [](int &n) -> void {n += N;};
-
-template<int N>
-auto multiply_r = [](int &n) -> void {n *= N;};
+struct foo {
+    int a;
+    char b;
+    short c;
+    long long d;
+};
 
 int main() {
     f220921<std::vector>();
@@ -25,17 +20,9 @@ int main() {
     
     std::cout << count(10) << ' ' << count(20) << ' ' << count(30) << ' ' << count.get_count() << '\n';
     
-    auto may = fff::maybe_factory(1);
-    auto may_copy = may >> multiply<3> >> add<6>;
+    auto got =
+            fff::pthrow(1) >> multiply<3> >> multiply<3>
+                    >> multiply<3> >> multiply<3> >> fff::pcatch;
     
-    std::cout << may.value() << ' ' << may_copy.value() << '\n';
-    
-    may << multiply_r<41771> << add_r<7110>;
-    
-    std::cout << may.value() << '\n';
-    
-    auto may_not = fff::maybe_factory.make<int>();
-    may_not << multiply_r<41771>;
-    
-    std::cout << may_not.has_value() << '\n';
+    std::cout << typeid(got).name() << ' ' << got << '\n';
 }

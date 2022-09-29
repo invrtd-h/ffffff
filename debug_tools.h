@@ -97,4 +97,32 @@ void concat_test() {
     concated(std::make_pair(41771, 7110));
 }
 
+template<int N>
+auto add = [](int n) -> int {return n + N;};
+
+template<int N>
+auto multiply = [](int n) -> int {return n * N;};
+
+template<int N>
+auto add_r = [](int &n) -> void {n += N;};
+
+template<int N>
+auto multiply_r = [](int &n) -> void {n *= N;};
+
+void maybe_test() {
+    auto may = fff::maybe_factory(1);
+    auto may_copy = may >> multiply<3> >> add<6>;
+    
+    std::cout << may.value() << ' ' << may_copy.value() << '\n';
+    
+    may << multiply_r<41771> << add_r<7110>;
+    
+    std::cout << may.value() << '\n';
+    
+    auto may_not = fff::maybe_factory.make<int>();
+    may_not << multiply_r<41771>;
+    
+    std::cout << may_not.has_value() << '\n';
+}
+
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H

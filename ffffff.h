@@ -14,14 +14,14 @@
 #include <ranges>
 #include <tuple>
 
-#include "us_tmf.h"
+#include "tmf.h"
 
 namespace fff::pol {
     /**
      * @deprecated since we do not use Bloop class
      * @see class Bloop
      */
-    struct NewDataPolicy {
+     struct NewDataPolicy {
         static constexpr bool is_new_data_policy = true;
     };
     
@@ -35,7 +35,7 @@ namespace fff::pol {
     
     /**
      * Unique-address Policy.
-     * @namespace fff::impl::pol
+     * @namespace fff::pol
      * @var YES : implies that the inner callable is NOT an empty struct
      * @var NO : implies not
      */
@@ -172,7 +172,7 @@ namespace fff {
      * @tparam UA Unique-address policy : YES if f requires address, NO if not
      */
     template<class Fn, auto UA = pol::uniq_addr::YES>
-    requires (not std::is_void_v<std::invoke_result_t<Fn>>)
+        requires (not std::is_void_v<std::invoke_result_t<Fn>>)
     class Once_nv {
         friend class OnceFactory;
         
@@ -222,7 +222,7 @@ namespace fff {
      * @tparam UA Unique-address policy : YES if f requires address, NO if not
      */
     template<class Fn, auto UA = pol::uniq_addr::YES>
-    requires std::is_void_v<std::invoke_result_t<Fn>>
+        requires std::is_void_v<std::invoke_result_t<Fn>>
     class Once_v {
         friend class OnceFactory;
         
@@ -243,7 +243,7 @@ namespace fff {
     };
     
     template<class Fn>
-    requires std::is_void_v<std::invoke_result_t<Fn>>
+        requires std::is_void_v<std::invoke_result_t<Fn>>
     class Once_v<Fn, pol::uniq_addr::NO> {
         friend class OnceFactory;
         
@@ -263,7 +263,7 @@ namespace fff {
     
     struct OnceFactory {
         template<class F>
-        requires std::invocable<F>
+            requires std::invocable<F>
         constexpr auto operator()(F &&f) noexcept {
             if constexpr (not std::is_void_v<std::invoke_result_t<F>>) {
                 if constexpr (not std::is_empty_v<F>) {
@@ -342,17 +342,84 @@ namespace fff {
 }
 
 namespace fff {
+    struct PCatch {};
+    
+    template<typename T>
+    class FFF {
+        T data;
+        
+    public:
+        constexpr explicit FFF<T> (const T &t) noexcept(noexcept(T(t)))
+                : data(t) {}
+        constexpr explicit FFF<T> (T &&t) noexcept(noexcept(T(t)))
+                : data(t) {}
+        
+        constexpr explicit operator T() const noexcept {
+            return data;
+        }
+        
+        constexpr T operator>>(PCatch u) const noexcept {
+            return data;
+        }
+    
+        template<class F>
+            requires (std::invocable<F, T> and not std::is_void_v<std::invoke_result_t<F, T>>)
+        constexpr auto operator>>(F &&f) const
+        noexcept(noexcept(f(data)))
+        {
+            return FFF<std::invoke_result_t<F, T>>(f(data));
+        }
+    };
+    
+    struct FFFFactory {
+        template<typename T>
+        constexpr auto operator()(T t) const {
+            return FFF<T>(t);
+        }
+    };
+}
+
+namespace fff {
     template<typename T>
     class Maybe : public std::optional<T> {
     public:
+        constexpr static bool is_maybe = true;
+        
         template<class ...Args>
-        requires std::is_constructible_v<std::optional<T>, Args...>
+            requires std::is_constructible_v<std::optional<T>, Args...>
         constexpr Maybe<T>(Args &&...args) noexcept : std::optional<T>(std::forward<Args>(args)...) {}
         
+        /**
+         * Lift : (T -> U) -> (M<T> -> M<U>)
+         * @tparam F Function Object Type
+         * @param f Function Object
+         * @return f(x) if x is not empty, std::nullopt if empty
+         */
         template<class F>
-        requires std::invocable<F, T>
-        constexpr Maybe<T> operator>>(F &&f) const
-        noexcept(noexcept(f(this->value())))
+            requires (std::invocable<F, T>
+                    and not std::is_void_v<std::invoke_result_t<F, T>>
+                    and not tmf::is_maybe<std::invoke_result_t<F, T>>)
+        constexpr Maybe<std::invoke_result_t<F, T>> operator>>(F &&f) const
+            noexcept(noexcept(f(this->value())))
+        {
+            if (this->has_value()) {
+                return f(this->value());
+            } else {
+                return std::nullopt;
+            }
+        }
+        
+        /**
+         * Flatlift : (T -> M<U>) -> (M<T> -> M<U>)
+         * @tparam F Function Object Type
+         * @param f Function Object
+         * @return
+         */
+        template<class F>
+            requires (std::invocable<F, T>
+                  and tmf::is_maybe<std::invoke_result_t<F, T>>)
+        constexpr std::invoke_result_t<F, T> operator>>(F &&f) const
+            noexcept(noexcept(f(this->value())))
         {
             if (this->has_value()) {
                 return f(this->value());
@@ -362,9 +429,9 @@ namespace fff {
         }
         
         template<class F>
-        requires std::invocable<F, T &>
+            requires std::invocable<F, T &>
         constexpr Maybe<T> &operator<<(F &&f)
-        noexcept(noexcept(f(this->value())))
+            noexcept(noexcept(f(this->value())))
         {
             if (this->has_value()) {
                 f(this->value());
@@ -372,9 +439,6 @@ namespace fff {
             return *this;
         }
     };
-}
-
-namespace fff {
 
     struct MaybeFactory {
         template<typename T>
@@ -409,7 +473,7 @@ namespace fff {
                 : f_1(f_1), f_2(f_2) {}
     
         template<class... Args>
-        requires std::invocable<Fn_1, Args...>
+            requires std::invocable<Fn_1, Args...>
         constexpr auto operator()(Args &&...args) const
         noexcept(noexcept(f_1(std::forward<Args>(args)...)))
         {
@@ -417,7 +481,7 @@ namespace fff {
         }
     
         template<class... Args>
-        requires (not std::invocable<Fn_1, Args...> and std::invocable<Fn_2, Args...>)
+            requires (not std::invocable<Fn_1, Args...> and std::invocable<Fn_2, Args...>)
         constexpr auto operator()(Args &&...args) const
         noexcept(noexcept(f_2(std::forward<Args>(args)...)))
         {
@@ -442,6 +506,21 @@ namespace fff {
 
 namespace fff {
     
+    template<class F1, class F2>
+    class Compose {
+        F1 f1;
+        F2 f2;
+        
+    public:
+        constexpr Compose(const F1 &f1, const F2 &f2) noexcept : f1(f1), f2(f2) {}
+        constexpr Compose(const F1 &f1, F2 &&f2) noexcept : f1(f1), f2(std::move(f2)) {}
+        constexpr Compose(F1 &&f1, const F2 &f2) noexcept : f1(std::move(f1)), f2(f2) {}
+        constexpr Compose(F1 &&f1, F2 &&f2) noexcept : f1(std::move(f1)), f2(std::move(f2)) {}
+    };
+}
+
+namespace fff {
+    
     /**
      * Making Result-Container function obj.
      * @param cont any std::(container) with type T
@@ -451,16 +530,16 @@ namespace fff {
     
     struct PreallocCont : public pol::NewDataPolicy {
         template<typename T, class FuncObj, size_t N>
-        requires std::invocable<FuncObj, T>
-                 and tmf::DefaultConstructible<std::invoke_result_t<FuncObj, T>>
+            requires std::invocable<FuncObj, T>
+                and std::is_default_constructible_v<std::invoke_result_t<FuncObj, T>>
         constexpr auto operator()(const std::array<T, N> &cont, const FuncObj &func) const noexcept {
             return std::array<std::invoke_result_t<FuncObj, T>, N>();
         }
         
         template<template<class> class C, typename T, class FuncObj>
-        requires std::ranges::range<C<T>>
-                 and std::invocable<FuncObj, T>
-                 and tmf::DefaultConstructible<std::invoke_result_t<FuncObj, T>>
+            requires std::ranges::range<C<T>>
+                and std::invocable<FuncObj, T>
+                and std::is_default_constructible_v<std::invoke_result_t<FuncObj, T>>
         constexpr auto operator()(const C<T> &cont, const FuncObj &func) const noexcept {
             return C<std::invoke_result_t<FuncObj, T>>(cont.size());
         }
@@ -468,8 +547,8 @@ namespace fff {
     
     struct NewCont : public pol::NewDataPolicy {
         template<class Cont, class FuncObj>
-        requires std::ranges::range<Cont>
-                and tmf::DefaultConstructible<Cont>
+            requires std::ranges::range<Cont>
+                and std::is_default_constructible_v<Cont>
         constexpr auto operator()(const Cont &cont, const FuncObj &funcObj) const noexcept {
             return Cont();
         }
@@ -480,7 +559,7 @@ namespace fff {
          * @todo consider if the return value of func is void
          */
         template<class T_cont, class U_cont, class FuncObj>
-        requires std::ranges::range<T_cont>
+            requires std::ranges::range<T_cont>
                 and std::ranges::range<U_cont>
                 and std::is_same_v<typename std::invoke_result<FuncObj, typename T_cont::value_type>::type,
                                  typename U_cont::value_type>
@@ -501,7 +580,7 @@ namespace fff {
     
     struct PushExecution : public pol::ExecutionPolicy {
         template<class T_cont, class FuncObj>
-        requires std::ranges::range<T_cont>
+            requires std::ranges::range<T_cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename T_cont::value_type>, bool>
         constexpr auto &operator()(T_cont &res_cont, T_cont &var_cont, const FuncObj &func) const
         noexcept(noexcept(func(var_cont[0])))
@@ -520,7 +599,7 @@ namespace fff {
              * If the container has push_back() method, apply it
              */
             template<template<class> class C, typename T>
-            requires tmf::BackPushable<C>
+                requires tmf::backpushable<C>
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.push_back(val);
             }
@@ -530,7 +609,7 @@ namespace fff {
              * apply it
              */
             template<template<class> class C, typename T>
-            requires (not tmf::BackPushable<C> and tmf::Insertable<C>)
+                requires (not tmf::backpushable<C> and tmf::insertible<C>)
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.insert(val);
             }
@@ -539,7 +618,7 @@ namespace fff {
     
     struct Each {
         template<class Cont, class FuncObj>
-        requires std::ranges::range<Cont>
+            requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
         constexpr void operator()(Cont &cont, const FuncObj &func) const
         noexcept(noexcept(func(cont[0])))
@@ -550,7 +629,7 @@ namespace fff {
     
     struct Map {
         template<class Cont, class FuncObj>
-        requires std::ranges::range<Cont>
+            requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
         noexcept(noexcept(func(cont[0])))
@@ -573,7 +652,7 @@ namespace fff {
     
     struct Filter {
         template<class Cont, class FuncObj>
-        requires std::ranges::range<Cont>
+            requires std::ranges::range<Cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type &>, bool>
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
         noexcept(noexcept(func(cont[0])))
@@ -594,7 +673,7 @@ namespace fff {
              * If the container has push_back() method, apply it
              */
             template<template<class> class C, typename T>
-            requires tmf::BackPushable<C>
+                requires tmf::backpushable<C>
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.push_back(val);
             }
@@ -604,7 +683,7 @@ namespace fff {
              * apply it
              */
             template<template<class> class C, typename T>
-            requires (not tmf::BackPushable<C> and tmf::Insertable<C>)
+                requires (not tmf::backpushable<C> and tmf::insertible<C>)
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.insert(val);
             }
@@ -623,7 +702,7 @@ namespace fff {
     
     struct Reject {
         template<class Cont, class FuncObj>
-        requires std::ranges::range<Cont>
+            requires std::ranges::range<Cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
         noexcept(noexcept(func(cont[0])))
@@ -635,7 +714,7 @@ namespace fff {
     template<bool func_ret, bool ret>
     struct LogicMake {
         template<class Cont, class FuncObj>
-        requires std::ranges::range<Cont>
+            requires std::ranges::range<Cont>
                  and std::convertible_to<std::invoke_result_t
                          <FuncObj, std::remove_cv_t<typename Cont::value_type &>>, bool>
         constexpr bool operator()(const Cont &cont, const FuncObj &func) const
@@ -655,14 +734,14 @@ namespace fff {
     using None = LogicMake<true, false>;
     
     template<class ANewDataPolicy, class AnExecutionPolicy>
-    requires ANewDataPolicy::is_new_data_policy
+        requires ANewDataPolicy::is_new_data_policy
              and AnExecutionPolicy::is_execution_policy
     struct Bloop {
         using new_data_policy = ANewDataPolicy;
         using execution_policy = AnExecutionPolicy;
         
         template<class Cont, class FuncObj>
-        requires std::ranges::range<Cont>
+            requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
         constexpr auto operator()(Cont &cont, const FuncObj &func) const {
             
@@ -698,7 +777,7 @@ namespace impl::lab {
     template<class Validator, class FuncObj_T, class FuncObj_F>
     struct Conditional {
         template<typename ...Args>
-        requires std::is_same_v<std::invoke_result_t<FuncObj_T, Args...>, std::invoke_result_t<FuncObj_F, Args...>>
+            requires std::is_same_v<std::invoke_result_t<FuncObj_T, Args...>, std::invoke_result_t<FuncObj_F, Args...>>
         constexpr auto operator()(Args &&...args) const noexcept {
             if (Validator()(std::forward<Args>(args)...)) {
                 return FuncObj_T()(std::forward<Args>(args)...);
@@ -730,7 +809,11 @@ namespace fff {
     
     inline OnceFactory              once_factory;
     inline CountFactory             count_factory;
+    
     inline MaybeFactory             maybe_factory;
+    
+    inline PCatch                   pcatch;
+    inline FFFFactory               pthrow;
     
     inline ConcatFactory            concat_factory;
 }

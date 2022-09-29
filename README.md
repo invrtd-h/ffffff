@@ -36,4 +36,5 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 ### Monads
 
+* Maybe\<T\>
 * _.maybe_factory()
