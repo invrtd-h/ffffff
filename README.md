@@ -32,7 +32,8 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 * _.once()
 * _.count()
-* _.concat()
+* _.compose()
+* _.concaten()
 * _.overload()
 
 ### Monads

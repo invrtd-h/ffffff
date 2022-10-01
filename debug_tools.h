@@ -106,6 +106,18 @@ void concat_test() {
     overloaded(4.9);
     overloaded("String");
     
+    int r = 3;
+    
+    auto f = fff::concaten(
+            [r](int n) {std::cout << n * 2 + r << '\n';},
+            [r](double n) {std::cout << n * 2 + r << '\n';}
+    );
+    
+    f(5);
+    f(4.9);
+    
+    std::cout << "The size of f is " << sizeof(f) << '\n';
+    
 }
 
 template<int N>

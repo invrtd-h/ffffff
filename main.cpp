@@ -41,7 +41,12 @@ int main() {
             fff::pthrow(1) >> multiply<3> >> multiply<3>
                     >> multiply<3> >> multiply<3> >> fff::pcatch;
     
-    fff::AsSingle<Bar> b, c;
-    b.get().say_hello();
-    std::cout << (&(b.get()) == &(c.get())) << ' ' << (&b == &c) << '\n';
+    auto f = fff::compose(
+            [](int n) {return n * 2;},
+            [](int n) {return n + 3;},
+            [](int n) {return n * 4;}
+    );
+    
+    std::cout << f(5) << '\n';
+    std::cout << "The size of f is " << sizeof(f) << '\n';
 }

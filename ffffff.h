@@ -476,7 +476,7 @@ namespace fff {
 namespace fff {
     
     template<class Fn_1, class Fn_2>
-    class Concat {
+    class [[deprecated("Use fff::Concaten rather than fff::Concat")]] Concat {
         Fn_1 f_1;
         Fn_2 f_2;
     public:
@@ -486,17 +486,6 @@ namespace fff {
         template<class U1, class U2>
         constexpr Concat(U1 &&f1, U2 &&f2) noexcept
                 : f_1(std::forward<U1>(f1)), f_2(std::forward<U2>(f2)) {}
-        
-        /*
-        constexpr Concat(const Fn_1 &f_1, const Fn_2 &f_2) noexcept
-                : f_1(f_1), f_2(f_2) {}
-        constexpr Concat(const Fn_1 &f_1, Fn_2 &&f_2) noexcept
-                : f_1(f_1), f_2(std::move(f_2)) {}
-        constexpr Concat(Fn_1 &&f_1, const Fn_2 &f_2) noexcept
-                : f_1(std::move(f_1)), f_2(f_2) {}
-        constexpr Concat(Fn_1 &&f_1, Fn_2 &&f_2) noexcept
-                : f_1(std::move(f_1)), f_2(std::move(f_2)) {}
-        */
     
         template<class... Args>
             requires std::invocable<Fn_1, Args...>
@@ -544,25 +533,81 @@ namespace fff {
 }
 
 namespace fff {
+    template<class F, class ...Fp>
+    struct Concaten : F, Concaten<Fp...> {
     
-    template<class F1, class F2>
-    class Compose {
-        F1 f1;
-        F2 f2;
+        template<class ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const
+            noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
+        {
+            return F::operator()(std::forward<Args>(args)...);
+        }
+    
+        template<class ...Args>
+            requires (not std::invocable<F, Args...>)
+        constexpr auto operator()(Args &&...args) const
+            noexcept(noexcept(Concaten<Fp...>::operator()(std::forward<Args>(args)...)))
+        {
+            return Concaten<Fp...>::operator()(std::forward<Args>(args)...);
+        }
+    };
+    
+    template<class F>
+    struct Concaten<F> : F {
+        template<class ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const
+            noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
+        {
+            return F::operator()(std::forward<Args>(args)...);
+        }
+    };
+    
+    struct ConcatenFactory {
+        template<class F>
+        constexpr auto operator()(F &&f) const noexcept {
+            return Concaten{f};
+        }
         
-    public:
-        constexpr Compose(const F1 &f1, const F2 &f2) noexcept : f1(f1), f2(f2) {}
-        constexpr Compose(const F1 &f1, F2 &&f2) noexcept : f1(f1), f2(std::move(f2)) {}
-        constexpr Compose(F1 &&f1, const F2 &f2) noexcept : f1(std::move(f1)), f2(f2) {}
-        constexpr Compose(F1 &&f1, F2 &&f2) noexcept : f1(std::move(f1)), f2(std::move(f2)) {}
-        
-        
+        template<class F, class ...Fp>
+        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept {
+            return Concaten{f, operator()(fp...)};
+        }
+    };
+}
+
+namespace fff {
+    
+    template<class F, class ...Fp>
+    struct Compose : F, Compose<Fp...> {
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const
+        {
+            return F::operator()(Compose<Fp...>::operator()(std::forward<Args>(args)...));
+        }
+    };
+    
+    template<class F>
+    struct Compose<F> : F {
+        template<class ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const
+            noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
+        {
+            return F::operator()(std::forward<Args>(args)...);
+        }
     };
     
     struct ComposeFactory {
-        template<class F1, class F2>
-        constexpr auto operator()(F1 &&f1, F2 &&f2) const noexcept {
+        template<class F>
+        constexpr auto operator()(F &&f) const noexcept {
+            return Compose{f};
+        }
         
+        template<class F, class ...Fp>
+        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept {
+            return Compose{f, operator()(fp...)};
         }
     };
 }
@@ -864,6 +909,8 @@ namespace fff {
     inline OnFactory                pthrow;
     
     inline ConcatFactory            concat;
+    inline ComposeFactory           compose;
+    inline ConcatenFactory          concaten;
     inline OverloadFactory          overload;
 }
 
