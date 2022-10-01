@@ -16,6 +16,8 @@
 
 #include "tmf.h"
 
+using namespace std::placeholders;
+
 namespace fff::pol {
     /**
      * @deprecated since we do not use Bloop class
@@ -160,18 +162,36 @@ namespace fff {
         };
     };
     
-    using AlwaysPositive = AlwaysConstant<bool>::Returns<true>;
-    using AlwaysNegative = AlwaysConstant<bool>::Returns<false>;
+    using AlwaysTrue = AlwaysConstant<bool>::Returns<true>;
+    using AlwaysFalse = AlwaysConstant<bool>::Returns<false>;
 }
 
 namespace fff {
+    /**
+     * A type constructor that makes a singleton.
+     * @tparam T The type of singleton\n
+     * should hide constructors and should delete copy/move procedures\n
+     * should declare AsSingle as a friend
+     */
+    template<typename T>
+    struct AsSingle {
+        T &get() {
+            static T *data = new T();
+            return *data;
+        }
+    };
+}
+
+namespace fff {
+    
+    using pol::uniq_addr;
 
     /**
-     * A callable that invokes the inner function only once_factory.
+     * A callable that invokes the inner function only once.
      * @tparam Fn Function type, requires non-void return value with void invoke
      * @tparam UA Unique-address policy : YES if f requires address, NO if not
      */
-    template<class Fn, auto UA = pol::uniq_addr::YES>
+    template<class Fn, auto UA = uniq_addr::YES>
         requires (not std::is_void_v<std::invoke_result_t<Fn>>)
     class Once_nv {
         friend class OnceFactory;
@@ -196,13 +216,13 @@ namespace fff {
     };
     
     template<class Fn>
-    class Once_nv<Fn, pol::uniq_addr::NO> {
+    class Once_nv<Fn, uniq_addr::NO> {
         friend class OnceFactory;
     
         mutable std::invoke_result_t<Fn> memo;
         mutable bool flag;
         
-        constexpr Once_nv<Fn, pol::uniq_addr::NO>() noexcept: flag(false) {}
+        constexpr Once_nv<Fn, uniq_addr::NO>() noexcept: flag(false) {}
         
     public:
         constexpr std::invoke_result_t<Fn> operator()() const
@@ -217,11 +237,11 @@ namespace fff {
     };
     
     /**
-     * A callable that invokes the inner function only once_factory.
+     * A callable that invokes the inner function only once.
      * @tparam Fn Function type, requires VOID return value with void invoke
      * @tparam UA Unique-address policy : YES if f requires address, NO if not
      */
-    template<class Fn, auto UA = pol::uniq_addr::YES>
+    template<class Fn, auto UA = uniq_addr::YES>
         requires std::is_void_v<std::invoke_result_t<Fn>>
     class Once_v {
         friend class OnceFactory;
@@ -244,7 +264,7 @@ namespace fff {
     
     template<class Fn>
         requires std::is_void_v<std::invoke_result_t<Fn>>
-    class Once_v<Fn, pol::uniq_addr::NO> {
+    class Once_v<Fn, uniq_addr::NO> {
         friend class OnceFactory;
         
         mutable bool flag;
@@ -269,13 +289,13 @@ namespace fff {
                 if constexpr (not std::is_empty_v<F>) {
                     return Once_nv<F>(std::forward<F>(f));
                 } else {
-                    return Once_nv<F, pol::uniq_addr::NO>();
+                    return Once_nv<F, uniq_addr::NO>();
                 }
             } else {
                 if constexpr (not std::is_empty_v<F>) {
                     return Once_v<F>(std::forward<F>(f));
                 } else {
-                    return Once_v<F, pol::uniq_addr::NO>();
+                    return Once_v<F, uniq_addr::NO>();
                 }
             }
         }
@@ -283,7 +303,7 @@ namespace fff {
 }
 
 namespace fff {
-    template<class Fn, auto UA = pol::uniq_addr::YES>
+    template<class Fn, auto UA = uniq_addr::YES>
     class Count {
         friend class CountFactory;
         
@@ -295,9 +315,9 @@ namespace fff {
         
     public:
         template<class ...Args>
-        requires std::invocable<Fn, Args...>
+            requires std::invocable<Fn, Args...>
         constexpr auto operator()(Args ...args) const
-        noexcept(noexcept(f(std::forward<Args>(args)...)))
+            noexcept(noexcept(f(std::forward<Args>(args)...)))
         {
             ++cnt;
             return f(std::forward<Args>(args)...);
@@ -308,7 +328,7 @@ namespace fff {
     };
     
     template<class Fn>
-    class Count<Fn, pol::uniq_addr::NO> {
+    class Count<Fn, uniq_addr::NO> {
         friend class CountFactory;
         
         mutable int cnt;
@@ -317,9 +337,9 @@ namespace fff {
     
     public:
         template<class ...Args>
-        requires std::invocable<Fn, Args...>
+            requires std::invocable<Fn, Args...>
         constexpr auto operator()(Args ...args) const
-        noexcept(noexcept(f(std::forward<Args>(args)...)))
+            noexcept(noexcept(f(std::forward<Args>(args)...)))
         {
             ++cnt;
             return Fn()(std::forward<Args>(args)...);
@@ -333,7 +353,7 @@ namespace fff {
         template<class Fn>
         constexpr auto operator()(Fn &&fn) const noexcept {
             if constexpr (not std::is_empty_v<Fn>) {
-                return Count<Fn, pol::uniq_addr::NO>();
+                return Count<Fn, uniq_addr::NO>();
             } else {
                 return Count<Fn>(std::forward<Fn>(fn));
             }
@@ -345,13 +365,13 @@ namespace fff {
     struct PCatch {};
     
     template<typename T>
-    class FFF {
+    class On {
         T data;
         
     public:
-        constexpr explicit FFF<T> (const T &t) noexcept(noexcept(T(t)))
+        constexpr explicit On(const T &t) noexcept(noexcept(T(t)))
                 : data(t) {}
-        constexpr explicit FFF<T> (T &&t) noexcept(noexcept(T(t)))
+        constexpr explicit On(T &&t) noexcept(noexcept(T(t)))
                 : data(t) {}
         
         constexpr explicit operator T() const noexcept {
@@ -365,16 +385,16 @@ namespace fff {
         template<class F>
             requires (std::invocable<F, T> and not std::is_void_v<std::invoke_result_t<F, T>>)
         constexpr auto operator>>(F &&f) const
-        noexcept(noexcept(f(data)))
+            noexcept(noexcept(f(data)))
         {
-            return FFF<std::invoke_result_t<F, T>>(f(data));
+            return On<std::invoke_result_t<F, T>>(f(data));
         }
     };
     
-    struct FFFFactory {
+    struct OnFactory {
         template<typename T>
         constexpr auto operator()(T t) const {
-            return FFF<T>(t);
+            return On<T>(t);
         }
     };
 }
@@ -456,26 +476,32 @@ namespace fff {
 namespace fff {
     
     template<class Fn_1, class Fn_2>
-    class Fconcat {
+    class Concat {
         Fn_1 f_1;
         Fn_2 f_2;
     public:
         using F1 = Fn_1;
         using F2 = Fn_2;
+    
+        template<class U1, class U2>
+        constexpr Concat(U1 &&f1, U2 &&f2) noexcept
+                : f_1(std::forward<U1>(f1)), f_2(std::forward<U2>(f2)) {}
         
-        constexpr explicit Fconcat(Fn_1 &&f_1, Fn_2 &&f_2) noexcept
-                : f_1(std::move(f_1)), f_2(std::move(f_2)) {}
-        constexpr explicit Fconcat(const Fn_1 &f_1, Fn_2 &&f_2) noexcept
-                : f_1(f_1), f_2(std::move(f_2)) {}
-        constexpr explicit Fconcat(Fn_1 &&f_1, const Fn_2 &f_2) noexcept
-                : f_1(std::move(f_1)), f_2(f_2) {}
-        constexpr explicit Fconcat(const Fn_1 &f_1, const Fn_2 &f_2) noexcept
+        /*
+        constexpr Concat(const Fn_1 &f_1, const Fn_2 &f_2) noexcept
                 : f_1(f_1), f_2(f_2) {}
+        constexpr Concat(const Fn_1 &f_1, Fn_2 &&f_2) noexcept
+                : f_1(f_1), f_2(std::move(f_2)) {}
+        constexpr Concat(Fn_1 &&f_1, const Fn_2 &f_2) noexcept
+                : f_1(std::move(f_1)), f_2(f_2) {}
+        constexpr Concat(Fn_1 &&f_1, Fn_2 &&f_2) noexcept
+                : f_1(std::move(f_1)), f_2(std::move(f_2)) {}
+        */
     
         template<class... Args>
             requires std::invocable<Fn_1, Args...>
         constexpr auto operator()(Args &&...args) const
-        noexcept(noexcept(f_1(std::forward<Args>(args)...)))
+            noexcept(noexcept(f_1(std::forward<Args>(args)...)))
         {
             return f_1(std::forward<Args>(args)...);
         }
@@ -483,7 +509,7 @@ namespace fff {
         template<class... Args>
             requires (not std::invocable<Fn_1, Args...> and std::invocable<Fn_2, Args...>)
         constexpr auto operator()(Args &&...args) const
-        noexcept(noexcept(f_2(std::forward<Args>(args)...)))
+            noexcept(noexcept(f_2(std::forward<Args>(args)...)))
         {
             return f_2(std::forward<Args>(args)...);
         }
@@ -491,15 +517,28 @@ namespace fff {
     
     struct ConcatFactory {
         template<class F1, class F2>
-        constexpr auto operator()(F1 &&f1, F2 &&f2) noexcept {
-            return Fconcat(std::forward<F1>(f1), std::forward<F2>(f2));
+        constexpr auto operator()(F1 &&f1, F2 &&f2) const noexcept {
+            return Concat<F1, F2>(std::forward<F1>(f1), std::forward<F2>(f2));
         }
     
         template<class F1, class F2, class... Fp>
-        constexpr auto operator()(F1 &&f1, F2 &&f2, Fp &&...fp) noexcept {
-            return Fconcat
-                    (std::forward<F1>(f1),
-                    (operator()(std::forward<F2>(f2), std::forward<Fp>(fp)...)));
+        constexpr auto operator()(F1 &&f1, F2 &&f2, Fp &&...fp) const noexcept {
+            return operator()(Concat<F1, F2>(std::forward<F1>(f1), std::forward<F2>(f2)),
+                              std::forward<Fp>(fp)...);
+        }
+    };
+}
+
+namespace fff {
+    template<class ...Fp>
+    struct Overload : Fp... {
+        using Fp::operator()...;
+    };
+    
+    struct OverloadFactory {
+        template<class ...Fp>
+        constexpr auto operator()(Fp &&...fp) const noexcept {
+            return Overload{std::forward<Fp>(fp)...};
         }
     };
 }
@@ -516,6 +555,15 @@ namespace fff {
         constexpr Compose(const F1 &f1, F2 &&f2) noexcept : f1(f1), f2(std::move(f2)) {}
         constexpr Compose(F1 &&f1, const F2 &f2) noexcept : f1(std::move(f1)), f2(f2) {}
         constexpr Compose(F1 &&f1, F2 &&f2) noexcept : f1(std::move(f1)), f2(std::move(f2)) {}
+        
+        
+    };
+    
+    struct ComposeFactory {
+        template<class F1, class F2>
+        constexpr auto operator()(F1 &&f1, F2 &&f2) const noexcept {
+        
+        }
     };
 }
 
@@ -798,8 +846,8 @@ namespace fff {
     inline Every                    every;
     inline None                     none;
     
-    inline AlwaysPositive           always_positive;
-    inline AlwaysNegative           always_negative;
+    inline AlwaysTrue               always_positive;
+    inline AlwaysFalse              always_negative;
     
     template<std::size_t SZ>
     inline IdentityAt<SZ>           identity_at;
@@ -807,16 +855,19 @@ namespace fff {
     template<std::size_t SZ>
     inline CopyAt<SZ>               copy_at;
     
-    inline OnceFactory              once_factory;
-    inline CountFactory             count_factory;
+    inline OnceFactory              once;
+    inline CountFactory             count;
     
-    inline MaybeFactory             maybe_factory;
+    inline MaybeFactory             maybe;
     
     inline PCatch                   pcatch;
-    inline FFFFactory               pthrow;
+    inline OnFactory                pthrow;
     
-    inline ConcatFactory            concat_factory;
+    inline ConcatFactory            concat;
+    inline OverloadFactory          overload;
 }
+
+
 
 #endif //UNDERSCORE_CPP_FFFFFF_H
 

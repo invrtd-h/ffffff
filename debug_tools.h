@@ -75,7 +75,7 @@ void f220921() {
 }
 
 void once_test() {
-    auto once = fff::once_factory([]() noexcept {
+    auto once = fff::once([]() noexcept {
         std::cout << "Hello\n";
         return 'x';
     });
@@ -86,15 +86,26 @@ void once_test() {
 void concat_test() {
     auto print_str = [](const std::string &s) {std::cout << s << '\n';};
     
-    auto concated = fff::concat_factory(
+    auto concated = fff::concat(
             [](int n) {std::cout << n << '\n';},
-            print_str,
-            [](std::pair<int, int> p) {std::cout << p.first << ' ' << p.second << '\n';}
+            [](double n) { std::cout << n << '\n'; },
+            print_str
     );
     
     concated(1);
+    concated(4.9);
     concated("String");
-    concated(std::make_pair(41771, 7110));
+    
+    auto overloaded = fff::overload(
+            [](int n) { std::cout << n << '\n'; },
+            [](double n) { std::cout << n << '\n'; },
+            print_str
+    );
+    
+    overloaded(1);
+    overloaded(4.9);
+    overloaded("String");
+    
 }
 
 template<int N>
@@ -110,7 +121,7 @@ template<int N>
 auto multiply_r = [](int &n) -> void {n *= N;};
 
 void maybe_test() {
-    auto may = fff::maybe_factory(1);
+    auto may = fff::maybe(1);
     auto may_copy = may >> multiply<3> >> add<6>;
     
     std::cout << may.value() << ' ' << may_copy.value() << '\n';
@@ -119,7 +130,7 @@ void maybe_test() {
     
     std::cout << may.value() << '\n';
     
-    auto may_not = fff::maybe_factory.make<int>();
+    auto may_not = fff::maybe.make<int>();
     may_not << multiply_r<41771>;
     
     std::cout << may_not.has_value() << '\n';

@@ -10,7 +10,7 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 ## FFFFFF.cpp features
 
-### Namespace impl::tmf
+### Namespace fff::tmf
 
 리턴 타입 추론에 쓰이는 템플릿 메타 함수들과 C++20 Concepts를 지원합니다.
 
@@ -30,11 +30,23 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 ### Higher Order Functions
 
-* _.once_factory()
-* _.count_factory()
-* _.concat_factory()
+* _.once()
+* _.count()
+* _.concat()
+* _.overload()
 
 ### Monads
 
-* Maybe\<T\>
-* _.maybe_factory()
+#### _.pthrow(), _.pcatch
+
+아무 기능도 없습니다! 하지만 파이프라인을 제공합니다.
+
+#### _.maybe()
+
+STL의 std::optional을 상속받았습니다. 값이 있을 수도 있고 없을 수도 있습니다.
+
+### Other utilities
+
+#### fff::AsSingle\<T\>
+
+싱글턴을 만들어 줍니다.

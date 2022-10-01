@@ -38,6 +38,9 @@ namespace fff::tmf {
     concept is_maybe = requires {
         T::is_maybe;
     };
+    
+    template<typename T>
+    concept inheritable = (std::is_class_v<T> and not std::is_final_v<T>);
 }
 
 #endif //UNDERSCORE_CPP_TMF_H
