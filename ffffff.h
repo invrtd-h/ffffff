@@ -5,6 +5,8 @@
 #ifndef UNDERSCORE_CPP_FFFFFF_H
 #define UNDERSCORE_CPP_FFFFFF_H
 
+#define fn auto
+
 #include <type_traits>
 #include <functional>
 #include <algorithm>
@@ -23,7 +25,7 @@ namespace fff::pol {
      * @deprecated since we do not use Bloop class
      * @see class Bloop
      */
-     struct NewDataPolicy {
+    struct NewDataPolicy {
         static constexpr bool is_new_data_policy = true;
     };
     
@@ -188,23 +190,23 @@ namespace fff {
 
     /**
      * A callable that invokes the inner function only once.
-     * @tparam Fn Function type, requires non-void return value with void invoke
+     * @tparam F Function type, requires non-void return value with void invoke
      * @tparam UA Unique-address policy : YES if f requires address, NO if not
      */
-    template<class Fn, auto UA = uniq_addr::YES>
-        requires (not std::is_void_v<std::invoke_result_t<Fn>>)
+    template<class F, auto UA = uniq_addr::YES>
+        requires (not std::is_void_v<std::invoke_result_t<F>>)
     class Once_nv {
         friend class OnceFactory;
         
-        Fn f;
-        mutable std::invoke_result_t<Fn> memo;
+        F f;
+        mutable std::invoke_result_t<F> memo;
         mutable bool flag;
         
-        constexpr explicit Once_nv(const Fn &f) noexcept : f(f), flag(false) {}
-        constexpr explicit Once_nv(Fn &&f) noexcept : f(std::move(f)), flag(false) {}
+        constexpr explicit Once_nv(const F &f) noexcept : f(f), flag(false) {}
+        constexpr explicit Once_nv(F &&f) noexcept : f(std::move(f)), flag(false) {}
         
     public:
-        constexpr std::invoke_result_t<Fn> operator()() const
+        constexpr std::invoke_result_t<F> operator()() const
             noexcept(noexcept(std::invoke(f)))
         {
             if (flag) {
@@ -215,42 +217,42 @@ namespace fff {
         }
     };
     
-    template<class Fn>
-    class Once_nv<Fn, uniq_addr::NO> {
+    template<class F>
+    class Once_nv<F, uniq_addr::NO> {
         friend class OnceFactory;
     
-        mutable std::invoke_result_t<Fn> memo;
+        mutable std::invoke_result_t<F> memo;
         mutable bool flag;
         
-        constexpr Once_nv<Fn, uniq_addr::NO>() noexcept: flag(false) {}
+        constexpr Once_nv<F, uniq_addr::NO>() noexcept: flag(false) {}
         
     public:
-        constexpr std::invoke_result_t<Fn> operator()() const
-        noexcept(noexcept(std::invoke(Fn())))
+        constexpr std::invoke_result_t<F> operator()() const
+        noexcept(noexcept(std::invoke(F())))
         {
             if (flag) {
                 return memo;
             }
             flag = true;
-            return memo = std::invoke(Fn());
+            return memo = std::invoke(F());
         }
     };
     
     /**
      * A callable that invokes the inner function only once.
-     * @tparam Fn Function type, requires VOID return value with void invoke
+     * @tparam F Function type, requires VOID return value with void invoke
      * @tparam UA Unique-address policy : YES if f requires address, NO if not
      */
-    template<class Fn, auto UA = uniq_addr::YES>
-        requires std::is_void_v<std::invoke_result_t<Fn>>
+    template<class F, auto UA = uniq_addr::YES>
+        requires std::is_void_v<std::invoke_result_t<F>>
     class Once_v {
         friend class OnceFactory;
         
-        Fn f;
+        F f;
         mutable bool flag;
         
-        constexpr explicit Once_v(const Fn &f) noexcept : f(f), flag(false) {}
-        constexpr explicit Once_v(Fn &&f) noexcept : f(std::move(f)), flag(false) {}
+        constexpr explicit Once_v(const F &f) noexcept : f(f), flag(false) {}
+        constexpr explicit Once_v(F &&f) noexcept : f(std::move(f)), flag(false) {}
         
     public:
         constexpr void operator()() const noexcept(noexcept(std::invoke(f))) {
@@ -262,9 +264,9 @@ namespace fff {
         }
     };
     
-    template<class Fn>
-        requires std::is_void_v<std::invoke_result_t<Fn>>
-    class Once_v<Fn, uniq_addr::NO> {
+    template<class F>
+        requires std::is_void_v<std::invoke_result_t<F>>
+    class Once_v<F, uniq_addr::NO> {
         friend class OnceFactory;
         
         mutable bool flag;
@@ -273,13 +275,13 @@ namespace fff {
     
     public:
         constexpr void operator()() const
-            noexcept(noexcept(std::invoke(Fn())))
+            noexcept(noexcept(std::invoke(F())))
         {
             if (flag) {
                 return;
             }
             flag = true;
-            std::invoke(Fn());
+            std::invoke(F());
         }
     };
     
@@ -319,10 +321,10 @@ namespace fff {
         template<class ...Args>
             requires std::invocable<Fn, Args...>
         constexpr auto operator()(Args ...args) const
-            noexcept(noexcept(f(std::forward<Args>(args)...)))
+            noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
         {
             ++cnt;
-            return f(std::forward<Args>(args)...);
+            return std::invoke(f, std::forward<Args>(args)...);
         }
         constexpr int get_count() const noexcept {
             return cnt;
@@ -341,10 +343,10 @@ namespace fff {
         template<class ...Args>
             requires std::invocable<Fn, Args...>
         constexpr auto operator()(Args ...args) const
-            noexcept(noexcept(f(std::forward<Args>(args)...)))
+            noexcept(noexcept(std::invoke(Fn(), std::forward<Args>(args)...)))
         {
             ++cnt;
-            return Fn()(std::forward<Args>(args)...);
+            return std::invoke(Fn(), std::forward<Args>(args)...);
         }
         constexpr int get_count() const noexcept {
             return cnt;
@@ -353,11 +355,11 @@ namespace fff {
     
     struct CountFactory {
         template<class Fn>
-        constexpr auto operator()(Fn &&fn) const noexcept {
+        constexpr auto operator()(Fn &&f) const noexcept {
             if constexpr (not std::is_empty_v<Fn>) {
                 return Count<Fn, uniq_addr::NO>();
             } else {
-                return Count<Fn>(std::forward<Fn>(fn));
+                return Count<Fn>(std::forward<Fn>(f));
             }
         }
     };
@@ -387,9 +389,9 @@ namespace fff {
         template<class F>
             requires (std::invocable<F, T> and not std::is_void_v<std::invoke_result_t<F, T>>)
         constexpr auto operator>>(F &&f) const
-            noexcept(noexcept(f(data)))
+            noexcept(noexcept(std::invoke(std::forward<F>(f), data)))
         {
-            return On<std::invoke_result_t<F, T>>(f(data));
+            return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), data));
         }
     };
     
@@ -422,10 +424,10 @@ namespace fff {
                     and not std::is_void_v<std::invoke_result_t<F, T>>
                     and not tmf::maybetype<std::invoke_result_t<F, T>>)
         constexpr Maybe<std::invoke_result_t<F, T>> operator>>(F &&f) const
-            noexcept(noexcept(f(this->value())))
+            noexcept(noexcept(std::invoke(std::forward<F>(f), this->value())))
         {
             if (this->has_value()) {
-                return f(this->value());
+                return std::invoke(std::forward<F>(f), this->value());
             } else {
                 return std::nullopt;
             }
@@ -441,10 +443,10 @@ namespace fff {
             requires (std::invocable<F, T>
                   and tmf::maybetype<std::invoke_result_t<F, T>>)
         constexpr std::invoke_result_t<F, T> operator>>(F &&f) const
-            noexcept(noexcept(f(this->value())))
+            noexcept(noexcept(std::invoke(std::forward<F>(f), this->value())))
         {
             if (this->has_value()) {
-                return f(this->value());
+                return std::invoke(std::forward<F>(f), this->value());
             } else {
                 return std::nullopt;
             }
@@ -453,10 +455,10 @@ namespace fff {
         template<class F>
             requires std::invocable<F, T &>
         constexpr Maybe<T> &operator<<(F &&f)
-            noexcept(noexcept(f(this->value())))
+            noexcept(noexcept(std::invoke(std::forward<F>(f), this->value())))
         {
             if (this->has_value()) {
-                f(this->value());
+                std::invoke(std::forward<F>(f), this->value());
             }
             return *this;
         }
@@ -535,18 +537,27 @@ namespace fff {
 }
 
 namespace fff {
+    
+    /**
+     * @todo need to check whether this is thread-safe
+     */
     template<class F, class ...Fp>
     struct Concaten : F, Concaten<Fp...> {
     
         template<class ...Args>
+            requires std::invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const
             noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
         {
-            if constexpr (std::invocable<F, Args...>) {
-                return F::operator()(std::forward<Args>(args)...);
-            } else {
-                return Concaten<Fp...>::operator()(std::forward<Args>(args)...);
-            }
+            return F::operator()(std::forward<Args>(args)...);
+        }
+        
+        template<class ...Args>
+            requires (not std::invocable<F, Args...>)
+        constexpr auto operator()(Args &&...args) const
+            noexcept(noexcept(Concaten<Fp...>::operator()(std::forward<Args>(args)...)))
+        {
+            return Concaten<Fp...>::operator()(std::forward<Args>(args)...);
         }
     };
     
@@ -652,7 +663,7 @@ namespace fff {
             auto it_u = u_cont.begin();
             
             while (it_t != t_cont.end()) {
-                *it_u = func(*it_t);
+                *it_u = std::invoke(func, *it_t);
                 ++it_t; ++it_u;
             }
             
@@ -668,7 +679,7 @@ namespace fff {
         noexcept(noexcept(func(var_cont[0])))
         {
             for (const auto &t : var_cont) {
-                if (func(t)) {
+                if (std::invoke(func, t)) {
                     PushPolicy()(res_cont, t);
                 }
             }
@@ -723,7 +734,7 @@ namespace fff {
                 auto it_u = ret.begin();
         
                 while (it_t != cont.end()) {
-                    *it_u = func(*it_t);
+                    *it_u = std::invoke(func, *it_t);
                     ++it_t; ++it_u;
                 }
             }
@@ -742,7 +753,7 @@ namespace fff {
             auto ret = NewCont()(cont, copy);
             
             for (const auto &v : cont) {
-                if (func(v)) {
+                if (std::invoke(func, v)) {
                     PushPolicy()(ret, v);
                 }
             }
@@ -803,7 +814,7 @@ namespace fff {
         noexcept(noexcept(func(cont[0])))
         {
             for (auto &v : cont) {
-                if (static_cast<bool>(func(v)) == func_ret) {
+                if (static_cast<bool>(std::invoke(func, v)) == func_ret) {
                     return ret;
                 }
             }

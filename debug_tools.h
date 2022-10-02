@@ -100,11 +100,13 @@ void concat_test() {
     
     auto f = fff::concaten(
             [r](int n) {std::cout << n * 2 + r << '\n';},
-            [r](double n) {std::cout << n * 2 + r << '\n';}
+            [r](double n) {std::cout << n * 2 + r << '\n';},
+            print_str
     );
     
     f(1);
     f(4.9);
+    f("My New String");
     
     std::cout << "The size of f is " << sizeof(f) << '\n';
     
