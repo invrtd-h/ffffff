@@ -63,7 +63,7 @@ namespace fff {
          */
         template<class T, typename... Args>
         constexpr auto &&operator()(T &&t, Args &&...args) const noexcept {
-            return IdentityAt<SZ - 1>()(std::forward<Args>(args)...);
+            return std::invoke(IdentityAt<SZ - 1>(), std::forward<Args>(args)...);
         }
     };
     
@@ -98,7 +98,7 @@ namespace fff {
          */
         template<class T, typename ...Args>
         constexpr auto operator()(T &&t, Args &&...args) const noexcept {
-            return IdentityAt<SZ - 1>()(std::forward<Args>(args)...);
+            return std::invoke(CopyAt<SZ - 1>(), std::forward<Args>(args)...);
         }
     };
     
@@ -205,13 +205,13 @@ namespace fff {
         
     public:
         constexpr std::invoke_result_t<Fn> operator()() const
-        noexcept(noexcept(f()))
+            noexcept(noexcept(std::invoke(f)))
         {
             if (flag) {
                 return memo;
             }
             flag = true;
-            return memo = f();
+            return memo = std::invoke(f);
         }
     };
     
@@ -226,13 +226,13 @@ namespace fff {
         
     public:
         constexpr std::invoke_result_t<Fn> operator()() const
-        noexcept(noexcept(std::declval<Fn>()()))
+        noexcept(noexcept(std::invoke(Fn())))
         {
             if (flag) {
                 return memo;
             }
             flag = true;
-            return memo = Fn()();
+            return memo = std::invoke(Fn());
         }
     };
     
@@ -253,12 +253,12 @@ namespace fff {
         constexpr explicit Once_v(Fn &&f) noexcept : f(std::move(f)), flag(false) {}
         
     public:
-        constexpr void operator()() const noexcept(noexcept(f())) {
+        constexpr void operator()() const noexcept(noexcept(std::invoke(f))) {
             if (flag) {
                 return;
             }
             flag = true;
-            f();
+            std::invoke(f);
         }
     };
     
@@ -272,12 +272,14 @@ namespace fff {
         constexpr explicit Once_v() noexcept : flag(false) {}
     
     public:
-        constexpr void operator()() const noexcept(noexcept(Fn()())) {
+        constexpr void operator()() const
+            noexcept(noexcept(std::invoke(Fn())))
+        {
             if (flag) {
                 return;
             }
             flag = true;
-            Fn()();
+            std::invoke(Fn());
         }
     };
     
@@ -362,7 +364,7 @@ namespace fff {
 }
 
 namespace fff {
-    struct PCatch {};
+    struct PipeCatch {};
     
     template<typename T>
     class On {
@@ -378,7 +380,7 @@ namespace fff {
             return data;
         }
         
-        constexpr T operator>>(PCatch u) const noexcept {
+        constexpr T operator>>(PipeCatch u) const noexcept {
             return data;
         }
     
@@ -418,7 +420,7 @@ namespace fff {
         template<class F>
             requires (std::invocable<F, T>
                     and not std::is_void_v<std::invoke_result_t<F, T>>
-                    and not tmf::is_maybe<std::invoke_result_t<F, T>>)
+                    and not tmf::maybetype<std::invoke_result_t<F, T>>)
         constexpr Maybe<std::invoke_result_t<F, T>> operator>>(F &&f) const
             noexcept(noexcept(f(this->value())))
         {
@@ -437,7 +439,7 @@ namespace fff {
          */
         template<class F>
             requires (std::invocable<F, T>
-                  and tmf::is_maybe<std::invoke_result_t<F, T>>)
+                  and tmf::maybetype<std::invoke_result_t<F, T>>)
         constexpr std::invoke_result_t<F, T> operator>>(F &&f) const
             noexcept(noexcept(f(this->value())))
         {
@@ -537,19 +539,14 @@ namespace fff {
     struct Concaten : F, Concaten<Fp...> {
     
         template<class ...Args>
-            requires std::invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const
             noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
         {
-            return F::operator()(std::forward<Args>(args)...);
-        }
-    
-        template<class ...Args>
-            requires (not std::invocable<F, Args...>)
-        constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(Concaten<Fp...>::operator()(std::forward<Args>(args)...)))
-        {
-            return Concaten<Fp...>::operator()(std::forward<Args>(args)...);
+            if constexpr (std::invocable<F, Args...>) {
+                return F::operator()(std::forward<Args>(args)...);
+            } else {
+                return Concaten<Fp...>::operator()(std::forward<Args>(args)...);
+            }
         }
     };
     
@@ -579,35 +576,27 @@ namespace fff {
 
 namespace fff {
     
-    template<class F, class ...Fp>
-    struct Compose : F, Compose<Fp...> {
-        template<class ...Args>
-        constexpr auto operator()(Args &&...args) const
-        {
-            return F::operator()(Compose<Fp...>::operator()(std::forward<Args>(args)...));
-        }
-    };
+    template<class ...Fp>
+    struct Compose;
     
-    template<class F>
-    struct Compose<F> : F {
-        template<class ...Args>
-            requires std::invocable<F, Args...>
-        constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
-        {
-            return F::operator()(std::forward<Args>(args)...);
-        }
-    };
+    template<tmf::nonempty_type F1, class ...Fp>
+        requires tmf::nonempty_type<Compose<Fp...>>
+    struct Compose<F1, Fp...> {
+        F1 f1;
+        Compose<Fp...> f2;
     
-    struct ComposeFactory {
-        template<class F>
-        constexpr auto operator()(F &&f) const noexcept {
-            return Compose{f};
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &
+            noexcept(noexcept(f1(f2(std::forward<Args>(args)...))))
+        {
+            return f1(f2(std::forward<Args>(args)...));
         }
         
-        template<class F, class ...Fp>
-        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept {
-            return Compose{f, operator()(fp...)};
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(f1(f2(std::forward<Args>(args)...))))
+        {
+            return f1(f2(std::forward<Args>(args)...));
         }
     };
 }
@@ -905,11 +894,10 @@ namespace fff {
     
     inline MaybeFactory             maybe;
     
-    inline PCatch                   pcatch;
-    inline OnFactory                pthrow;
+    inline PipeCatch                pipecatch;
+    inline OnFactory                pipethrow;
     
     inline ConcatFactory            concat;
-    inline ComposeFactory           compose;
     inline ConcatenFactory          concaten;
     inline OverloadFactory          overload;
 }

@@ -38,15 +38,7 @@ int main() {
     std::cout << count(10) << ' ' << count(20) << ' ' << count(30) << ' ' << count.get_count() << '\n';
     
     int got =
-            fff::pthrow(1) >> multiply<3> >> multiply<3>
-                    >> multiply<3> >> multiply<3> >> fff::pcatch;
+            fff::pipethrow(1) >> multiply<3> >> multiply<3>
+                    >> multiply<3> >> multiply<3> >> fff::pipecatch;
     
-    auto f = fff::compose(
-            [](int n) {return n * 2;},
-            [](int n) {return n + 3;},
-            [](int n) {return n * 4;}
-    );
-    
-    std::cout << f(5) << '\n';
-    std::cout << "The size of f is " << sizeof(f) << '\n';
 }

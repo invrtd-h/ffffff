@@ -86,16 +86,6 @@ void once_test() {
 void concat_test() {
     auto print_str = [](const std::string &s) {std::cout << s << '\n';};
     
-    auto concated = fff::concat(
-            [](int n) {std::cout << n << '\n';},
-            [](double n) { std::cout << n << '\n'; },
-            print_str
-    );
-    
-    concated(1);
-    concated(4.9);
-    concated("String");
-    
     auto overloaded = fff::overload(
             [](int n) { std::cout << n << '\n'; },
             [](double n) { std::cout << n << '\n'; },
@@ -113,7 +103,7 @@ void concat_test() {
             [r](double n) {std::cout << n * 2 + r << '\n';}
     );
     
-    f(5);
+    f(1);
     f(4.9);
     
     std::cout << "The size of f is " << sizeof(f) << '\n';
