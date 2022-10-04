@@ -77,10 +77,10 @@ void f220921() {
 void once_test() {
     auto once = fff::once([]() noexcept {
         std::cout << "Hello\n";
-        return 'x';
     });
     
     once(); once();
+    std::cout << "The sizeof once is " << sizeof(once) << '\n';
 }
 
 void concat_test() {
@@ -108,7 +108,7 @@ void concat_test() {
     f(4.9);
     f("My New String");
     
-    std::cout << "The size of f is " << sizeof(f) << '\n';
+    std::cout << "The sizeof f is " << sizeof(f) << '\n';
     
 }
 

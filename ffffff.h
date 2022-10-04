@@ -5,7 +5,9 @@
 #ifndef UNDERSCORE_CPP_FFFFFF_H
 #define UNDERSCORE_CPP_FFFFFF_H
 
+#ifndef fn
 #define fn auto
+#endif
 
 #include <type_traits>
 #include <functional>
@@ -47,6 +49,14 @@ namespace fff::pol {
 }
 
 namespace fff {
+    template<typename T>
+    concept any = true;
+}
+
+/*
+ * fff::Identity impl
+ */
+namespace fff {
     /**
      * The function object that returns the SZ-th value by perfect forwarding.
      * @example IdentityAt\<2>()(1, 2, std::string("a")) \n
@@ -55,7 +65,7 @@ namespace fff {
      * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
      */
     template<size_t SZ>
-    struct IdentityAt : public pol::NewDataPolicy {
+    struct IdentityAt {
         /**
          * @tparam T Any-type
          * @tparam Args Any-parameter-pack
@@ -70,7 +80,7 @@ namespace fff {
     };
     
     template<>
-    struct IdentityAt<0> : public pol::NewDataPolicy {
+    struct IdentityAt<0> {
         /**
          * Template specification of IdentityAt<> (read upward)
          */
@@ -83,6 +93,9 @@ namespace fff {
     using Identity = IdentityAt<0>;
 }
 
+/*
+ * fff::CopyAt impl
+ */
 namespace fff {
     
     /**
@@ -90,7 +103,7 @@ namespace fff {
      * @tparam SZ the position to return
      */
     template<size_t SZ>
-    struct CopyAt : public pol::NewDataPolicy {
+    struct CopyAt {
         /**
          * @tparam T Any-type
          * @tparam Args Any-parameter-pack
@@ -105,7 +118,7 @@ namespace fff {
     };
     
     template<>
-    struct CopyAt<0> : public pol::NewDataPolicy {
+    struct CopyAt<0> {
         /**
          * Template specification of IdentityAt<> (read upward)
          */
@@ -119,6 +132,9 @@ namespace fff {
     inline auto copy = Copy();
 }
 
+/*
+ * fff::Noop impl
+ */
 namespace fff {
     
     /**
@@ -138,6 +154,9 @@ namespace fff {
     };
 }
 
+/*
+ * fff::AlwaysConstant impl
+ */
 namespace fff {
     
     /**
@@ -168,6 +187,9 @@ namespace fff {
     using AlwaysFalse = AlwaysConstant<bool>::Returns<false>;
 }
 
+/*
+ * fff::AsSingle impl
+ */
 namespace fff {
     /**
      * A type constructor that makes a singleton.
@@ -184,27 +206,29 @@ namespace fff {
     };
 }
 
+/*
+ * fff::Once impl
+ */
 namespace fff {
     
     using pol::uniq_addr;
-
-    /**
-     * A callable that invokes the inner function only once.
-     * @tparam F Function type, requires non-void return value with void invoke
-     * @tparam UA Unique-address policy : YES if f requires address, NO if not
-     */
-    template<class F, auto UA = uniq_addr::YES>
-        requires (not std::is_void_v<std::invoke_result_t<F>>)
-    class Once_nv {
+    
+    template<class F>
+    class Once;
+    
+    template<class F>
+        requires (not std::is_void_v<std::invoke_result_t<F>>
+                and not std::is_empty_v<F>)
+    class Once<F> {
         friend class OnceFactory;
-        
+    
         F f;
         mutable std::invoke_result_t<F> memo;
         mutable bool flag;
-        
-        constexpr explicit Once_nv(const F &f) noexcept : f(f), flag(false) {}
-        constexpr explicit Once_nv(F &&f) noexcept : f(std::move(f)), flag(false) {}
-        
+    
+        constexpr explicit Once(const F &f) noexcept : f(f), flag(false) {}
+        constexpr explicit Once(F &&f) noexcept : f(std::move(f)), flag(false) {}
+
     public:
         constexpr std::invoke_result_t<F> operator()() const
             noexcept(noexcept(std::invoke(f)))
@@ -218,17 +242,20 @@ namespace fff {
     };
     
     template<class F>
-    class Once_nv<F, uniq_addr::NO> {
+    requires (not std::is_void_v<std::invoke_result_t<F>>
+              and std::is_empty_v<F>)
+    class Once<F> {
         friend class OnceFactory;
-    
+        
         mutable std::invoke_result_t<F> memo;
         mutable bool flag;
         
-        constexpr Once_nv<F, uniq_addr::NO>() noexcept: flag(false) {}
-        
+        constexpr explicit Once(const F &f) noexcept : flag(false) {}
+        constexpr explicit Once(F &&f) noexcept : flag(false) {}
+    
     public:
         constexpr std::invoke_result_t<F> operator()() const
-        noexcept(noexcept(std::invoke(F())))
+            noexcept(noexcept(std::invoke(F())))
         {
             if (flag) {
                 return memo;
@@ -238,24 +265,22 @@ namespace fff {
         }
     };
     
-    /**
-     * A callable that invokes the inner function only once.
-     * @tparam F Function type, requires VOID return value with void invoke
-     * @tparam UA Unique-address policy : YES if f requires address, NO if not
-     */
-    template<class F, auto UA = uniq_addr::YES>
-        requires std::is_void_v<std::invoke_result_t<F>>
-    class Once_v {
+    template<class F>
+    requires (std::is_void_v<std::invoke_result_t<F>>
+              and not std::is_empty_v<F>)
+    class Once<F> {
         friend class OnceFactory;
         
         F f;
         mutable bool flag;
         
-        constexpr explicit Once_v(const F &f) noexcept : f(f), flag(false) {}
-        constexpr explicit Once_v(F &&f) noexcept : f(std::move(f)), flag(false) {}
-        
+        constexpr explicit Once(const F &f) noexcept : f(f), flag(false) {}
+        constexpr explicit Once(F &&f) noexcept : f(std::move(f)), flag(false) {}
+    
     public:
-        constexpr void operator()() const noexcept(noexcept(std::invoke(f))) {
+        constexpr void operator()() const
+            noexcept(noexcept(std::invoke(f)))
+        {
             if (flag) {
                 return;
             }
@@ -265,13 +290,15 @@ namespace fff {
     };
     
     template<class F>
-        requires std::is_void_v<std::invoke_result_t<F>>
-    class Once_v<F, uniq_addr::NO> {
+    requires (std::is_void_v<std::invoke_result_t<F>>
+              and std::is_empty_v<F>)
+    class Once<F> {
         friend class OnceFactory;
         
         mutable bool flag;
         
-        constexpr explicit Once_v() noexcept : flag(false) {}
+        constexpr explicit Once(const F &f) noexcept : flag(false) {}
+        constexpr explicit Once(F &&f) noexcept : flag(false) {}
     
     public:
         constexpr void operator()() const
@@ -289,37 +316,29 @@ namespace fff {
         template<class F>
             requires std::invocable<F>
         constexpr auto operator()(F &&f) noexcept {
-            if constexpr (not std::is_void_v<std::invoke_result_t<F>>) {
-                if constexpr (not std::is_empty_v<F>) {
-                    return Once_nv<F>(std::forward<F>(f));
-                } else {
-                    return Once_nv<F, uniq_addr::NO>();
-                }
-            } else {
-                if constexpr (not std::is_empty_v<F>) {
-                    return Once_v<F>(std::forward<F>(f));
-                } else {
-                    return Once_v<F, uniq_addr::NO>();
-                }
-            }
+            return Once<F>(std::forward<F>(f));
         }
     };
 }
 
+/* fff::Count impl */
 namespace fff {
-    template<class Fn, auto UA = uniq_addr::YES>
-    class Count {
+    template<class F>
+    class Count;
+    
+    template<tmf::nonempty_type F>
+    class Count<F> {
         friend class CountFactory;
         
-        Fn f;
+        F f;
         mutable int cnt;
         
-        constexpr explicit Count(const Fn &f) noexcept : f(f), cnt(0) {}
-        constexpr explicit Count(Fn &&f) noexcept : f(std::move(f)), cnt(0) {}
+        constexpr explicit Count(const F &f) noexcept : f(f), cnt(0) {}
+        constexpr explicit Count(F &&f) noexcept : f(std::move(f)), cnt(0) {}
         
     public:
         template<class ...Args>
-            requires std::invocable<Fn, Args...>
+            requires std::invocable<F, Args...>
         constexpr auto operator()(Args ...args) const
             noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
         {
@@ -331,22 +350,23 @@ namespace fff {
         }
     };
     
-    template<class Fn>
-    class Count<Fn, uniq_addr::NO> {
+    template<tmf::empty_type F>
+    class Count<F> {
         friend class CountFactory;
         
         mutable int cnt;
-        
-        constexpr explicit Count() noexcept : cnt(0) {}
+    
+        constexpr explicit Count(const F &f) noexcept : cnt(0) {}
+        constexpr explicit Count(F &&f) noexcept : cnt(0) {}
     
     public:
         template<class ...Args>
-            requires std::invocable<Fn, Args...>
+            requires std::invocable<F, Args...>
         constexpr auto operator()(Args ...args) const
-            noexcept(noexcept(std::invoke(Fn(), std::forward<Args>(args)...)))
+            noexcept(noexcept(std::invoke(F(), std::forward<Args>(args)...)))
         {
             ++cnt;
-            return std::invoke(Fn(), std::forward<Args>(args)...);
+            return std::invoke(F(), std::forward<Args>(args)...);
         }
         constexpr int get_count() const noexcept {
             return cnt;
@@ -354,17 +374,34 @@ namespace fff {
     };
     
     struct CountFactory {
-        template<class Fn>
-        constexpr auto operator()(Fn &&f) const noexcept {
-            if constexpr (not std::is_empty_v<Fn>) {
-                return Count<Fn, uniq_addr::NO>();
-            } else {
-                return Count<Fn>(std::forward<Fn>(f));
-            }
+        template<class F>
+        constexpr auto operator()(F &&f) const noexcept {
+            return Count<F>(std::forward<F>(f));
         }
     };
 }
 
+/*
+ * fff::IdGiver impl
+ */
+namespace fff {
+    struct IdGiverFactory {
+        constexpr auto operator()(unsigned long long start) const noexcept {
+            return [start]() mutable {return ++start;};
+        }
+    };
+}
+
+/*
+ * fff::Log impl
+ */
+namespace fff {
+
+}
+
+/*
+ * fff::pipethrow(), fff::pipecatch impl
+ */
 namespace fff {
     struct PipeCatch {};
     
@@ -403,6 +440,9 @@ namespace fff {
     };
 }
 
+/*
+ * fff::Maybe impl
+ */
 namespace fff {
     template<typename T>
     class Maybe : public std::optional<T> {
@@ -477,10 +517,13 @@ namespace fff {
     };
 }
 
+/*
+ * fff::Concat impl
+ */
 namespace fff {
     
     template<class Fn_1, class Fn_2>
-    class [[deprecated("Use fff::Concaten rather than fff::Concat")]] Concat {
+    class Concat {
         Fn_1 f_1;
         Fn_2 f_2;
     public:
@@ -522,6 +565,9 @@ namespace fff {
     };
 }
 
+/*
+ * fff::Overload impl
+ */
 namespace fff {
     template<class ...Fp>
     struct Overload : Fp... {
@@ -531,7 +577,7 @@ namespace fff {
     struct OverloadFactory {
         template<class ...Fp>
         constexpr auto operator()(Fp &&...fp) const noexcept {
-            return Overload{std::forward<Fp>(fp)...};
+            return Overload<std::remove_reference_t<Fp>...>{std::forward<Fp>(fp)...};
         }
     };
 }
@@ -714,7 +760,7 @@ namespace fff {
             requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
         constexpr void operator()(Cont &cont, const FuncObj &func) const
-        noexcept(noexcept(func(cont[0])))
+            noexcept(noexcept(func(cont[0])))
         {
             std::ranges::for_each(cont, func);
         }
@@ -725,7 +771,7 @@ namespace fff {
             requires std::ranges::range<Cont>
                  and std::invocable<FuncObj, typename Cont::value_type &>
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
-        noexcept(noexcept(func(cont[0])))
+            noexcept(noexcept(func(cont[0])))
         {
             auto ret = PreallocCont()(cont, func);
     
@@ -748,7 +794,7 @@ namespace fff {
             requires std::ranges::range<Cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type &>, bool>
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
-        noexcept(noexcept(func(cont[0])))
+            noexcept(noexcept(func(cont[0])))
         {
             auto ret = NewCont()(cont, copy);
             
@@ -787,7 +833,7 @@ namespace fff {
     struct FilterWith {
         template<class Cont>
         constexpr auto operator()(Cont &cont) const
-        noexcept(noexcept(FuncObj()(cont[0])))
+            noexcept(noexcept(FuncObj()(cont[0])))
         {
             return Filter()(cont, FuncObj());
         }
@@ -798,7 +844,7 @@ namespace fff {
             requires std::ranges::range<Cont>
                  and std::convertible_to<std::invoke_result_t<FuncObj, typename Cont::value_type>, bool>
         constexpr auto operator()(const Cont &cont, const FuncObj &func) const
-        noexcept(noexcept(func(cont[0])))
+            noexcept(noexcept(func(cont[0])))
         {
             return Filter()(cont, std::not_fn(func));
         }
@@ -811,7 +857,7 @@ namespace fff {
                  and std::convertible_to<std::invoke_result_t
                          <FuncObj, std::remove_cv_t<typename Cont::value_type &>>, bool>
         constexpr bool operator()(const Cont &cont, const FuncObj &func) const
-        noexcept(noexcept(func(cont[0])))
+            noexcept(noexcept(func(cont[0])))
         {
             for (auto &v : cont) {
                 if (static_cast<bool>(std::invoke(func, v)) == func_ret) {
@@ -827,8 +873,6 @@ namespace fff {
     using None = LogicMake<true, false>;
     
     template<class ANewDataPolicy, class AnExecutionPolicy>
-        requires ANewDataPolicy::is_new_data_policy
-             and AnExecutionPolicy::is_execution_policy
     struct Bloop {
         using new_data_policy = ANewDataPolicy;
         using execution_policy = AnExecutionPolicy;
@@ -891,17 +935,17 @@ namespace fff {
     inline Every                    every;
     inline None                     none;
     
-    inline AlwaysTrue               always_positive;
-    inline AlwaysFalse              always_negative;
+    inline AlwaysTrue               always_true;
+    inline AlwaysFalse              always_false;
     
     template<std::size_t SZ>
     inline IdentityAt<SZ>           identity_at;
-    
     template<std::size_t SZ>
     inline CopyAt<SZ>               copy_at;
     
     inline OnceFactory              once;
     inline CountFactory             count;
+    inline IdGiverFactory           id_giver;
     
     inline MaybeFactory             maybe;
     
@@ -913,7 +957,43 @@ namespace fff {
     inline OverloadFactory          overload;
 }
 
+#ifndef NOUA
+#define NOUA [[no_unique_address]]
+#endif
 
+namespace fff {
+    struct Package {
+        NOUA Each each;
+        NOUA Map map;
+        NOUA Filter filter;
+        NOUA Reject reject;
+        
+        NOUA Some some;
+        NOUA Every every;
+        NOUA None none;
+        
+        NOUA AlwaysTrue always_true;
+        NOUA AlwaysFalse always_false;
+        
+        NOUA IdentityAt<0> identity;
+        NOUA CopyAt<0> copy;
+        
+        NOUA OnceFactory once;
+        NOUA CountFactory count;
+        NOUA IdGiverFactory id_giver;
+        
+        NOUA MaybeFactory maybe;
+        NOUA PipeCatch pipecatch;
+        NOUA OnFactory pipethrow;
+        
+        NOUA ConcatFactory concat;
+        NOUA ConcatenFactory concaten;
+        NOUA OverloadFactory overload;
+    };
+}
+
+#undef NOUA
+#undef fn
 
 #endif //UNDERSCORE_CPP_FFFFFF_H
 

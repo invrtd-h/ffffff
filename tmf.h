@@ -4,7 +4,7 @@
 namespace fff::tmf {
     
     template<typename T, typename U = T>
-    concept addable = requires (T l, U r) { l + r;};
+    concept addable = requires (T l, U r) {l + r;};
     
     template<typename T>
     concept printable = requires (T t) {std::cout << t;};
@@ -47,6 +47,15 @@ namespace fff::tmf {
     
     template<typename T>
     concept nonempty_type = (not std::is_empty_v<T>);
+    
+    template<typename T>
+    concept v_to_nv = (not std::is_void_v<std::invoke_result_t<T>>);
+    
+    template<typename T>
+    concept v_to_v = std::is_void_v<std::invoke_result_t<T>>;
+    
+    template<typename T>
+    concept hidden = (not std::move_constructible<T> and not std::copy_constructible<T>);
 }
 
 #endif //UNDERSCORE_CPP_TMF_H

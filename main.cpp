@@ -29,6 +29,7 @@ public:
 };
 
 int main() {
+    fff::Package f_{};
     f220921<std::vector>();
     once_test();
     concat_test();
@@ -41,4 +42,5 @@ int main() {
             fff::pipethrow(1) >> multiply<3> >> multiply<3>
                     >> multiply<3> >> multiply<3> >> fff::pipecatch;
     
+    std::cout << sizeof(f_) << '\n';
 }
