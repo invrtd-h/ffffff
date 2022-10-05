@@ -5,9 +5,8 @@
 #ifndef UNDERSCORE_CPP_FFFFFF_H
 #define UNDERSCORE_CPP_FFFFFF_H
 
-#ifndef fn
 #define fn auto
-#endif
+#define NOUA [[no_unique_address]]
 
 #include <type_traits>
 #include <functional>
@@ -326,7 +325,7 @@ namespace fff {
     template<class F>
     class Count;
     
-    template<tmf::nonempty_type F>
+    template<nonempty_type F>
     class Count<F> {
         friend class CountFactory;
         
@@ -350,10 +349,11 @@ namespace fff {
         }
     };
     
-    template<tmf::empty_type F>
+    template<empty_type F>
     class Count<F> {
         friend class CountFactory;
         
+        [[no_unique_address]] F f;
         mutable int cnt;
     
         constexpr explicit Count(const F &f) noexcept : cnt(0) {}
@@ -363,10 +363,10 @@ namespace fff {
         template<class ...Args>
             requires std::invocable<F, Args...>
         constexpr auto operator()(Args ...args) const
-            noexcept(noexcept(std::invoke(F(), std::forward<Args>(args)...)))
+            noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
         {
             ++cnt;
-            return std::invoke(F(), std::forward<Args>(args)...);
+            return std::invoke(f, std::forward<Args>(args)...);
         }
         constexpr int get_count() const noexcept {
             return cnt;
@@ -387,7 +387,7 @@ namespace fff {
 namespace fff {
     struct IdGiverFactory {
         constexpr auto operator()(unsigned long long start) const noexcept {
-            return [start]() mutable {return ++start;};
+            return [start]() mutable {return start++;};
         }
     };
 }
@@ -462,7 +462,7 @@ namespace fff {
         template<class F>
             requires (std::invocable<F, T>
                     and not std::is_void_v<std::invoke_result_t<F, T>>
-                    and not tmf::maybetype<std::invoke_result_t<F, T>>)
+                    and not maybetype<std::invoke_result_t<F, T>>)
         constexpr Maybe<std::invoke_result_t<F, T>> operator>>(F &&f) const
             noexcept(noexcept(std::invoke(std::forward<F>(f), this->value())))
         {
@@ -481,7 +481,7 @@ namespace fff {
          */
         template<class F>
             requires (std::invocable<F, T>
-                  and tmf::maybetype<std::invoke_result_t<F, T>>)
+                  and maybetype<std::invoke_result_t<F, T>>)
         constexpr std::invoke_result_t<F, T> operator>>(F &&f) const
             noexcept(noexcept(std::invoke(std::forward<F>(f), this->value())))
         {
@@ -621,39 +621,147 @@ namespace fff {
     struct ConcatenFactory {
         template<class F>
         constexpr auto operator()(F &&f) const noexcept {
-            return Concaten{f};
+            return Concaten<std::remove_reference_t<F>>{std::forward<F>(f)};
         }
         
         template<class F, class ...Fp>
         constexpr auto operator()(F &&f, Fp &&...fp) const noexcept {
-            return Concaten{f, operator()(fp...)};
+            return Concaten<std::remove_reference_t<F>, std::remove_reference_t<Fp>...>
+                    {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
     };
 }
 
 namespace fff {
     
-    template<class ...Fp>
+    template<class F, class ...Fp>
     struct Compose;
     
-    template<tmf::nonempty_type F1, class ...Fp>
-        requires tmf::nonempty_type<Compose<Fp...>>
+    template<nonempty_type F>
+    struct Compose<F> {
+        F f;
+    
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &
+        noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+        {
+            return std::invoke(f, std::forward<Args>(args)...);
+        }
+    
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
+    };
+    
+    template<empty_type F>
+    struct Compose<F> {
+        [[no_unique_address]] F f;
+        
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &
+        noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+        {
+            return std::invoke(f, std::forward<Args>(args)...);
+        }
+        
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
+    };
+    
+    template<nonempty_type F1, class ...Fp>
+        requires nonempty_type<Compose<Fp...>>
     struct Compose<F1, Fp...> {
         F1 f1;
         Compose<Fp...> f2;
     
         template<class ...Args>
         constexpr auto operator()(Args &&...args) const &
-            noexcept(noexcept(f1(f2(std::forward<Args>(args)...))))
+            noexcept(noexcept(std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...))))
         {
-            return f1(f2(std::forward<Args>(args)...));
+            return std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...));
         }
         
         template<class ...Args>
         constexpr auto operator()(Args &&...args) const &&
-        noexcept(noexcept(f1(f2(std::forward<Args>(args)...))))
+            noexcept(noexcept(std::invoke(std::move(f1), std::invoke(std::move(f2), std::forward<Args>(args)...))))
         {
-            return f1(f2(std::forward<Args>(args)...));
+            return std::invoke(std::move(f1), std::invoke(std::move(f2), std::forward<Args>(args)...));
+        }
+    };
+    
+    template<empty_type F1, class ...Fp>
+        requires nonempty_type<Compose<Fp...>>
+    struct Compose<F1, Fp...> {
+        [[no_unique_address]] F1 f1;
+        Compose<Fp...> f2;
+        
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &
+            noexcept(noexcept(std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...))))
+        {
+            return std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...));
+        }
+        
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &&
+            noexcept(noexcept(std::invoke(f1, std::invoke(std::move(f2), std::forward<Args>(args)...))))
+        {
+            return std::invoke(f1, std::invoke(std::move(f2), std::forward<Args>(args)...));
+        }
+    };
+    
+    template<nonempty_type F1, class ...Fp>
+        requires empty_type<Compose<Fp...>>
+    struct Compose<F1, Fp...> {
+        F1 f1;
+        [[no_unique_address]] Compose<Fp...> f2;
+        
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &
+            noexcept(noexcept(std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...))))
+        {
+            return std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...));
+        }
+        
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const &&
+            noexcept(noexcept(std::invoke(std::move(f1), std::invoke(f2, std::forward<Args>(args)...))))
+        {
+            return std::invoke(std::move(f1), std::invoke(f2, std::forward<Args>(args)...));
+        }
+    };
+    
+    template<empty_type F1, class ...Fp>
+        requires empty_type<Compose<Fp...>>
+    struct Compose<F1, Fp...> {
+        [[no_unique_address]] F1 f1;
+        [[no_unique_address]] Compose<Fp...> f2;
+        
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const
+            noexcept(noexcept(std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...))))
+        {
+            return std::invoke(f1, std::invoke(f2, std::forward<Args>(args)...));
+        }
+    };
+    
+    struct ComposeFactory {
+        template<class F>
+        constexpr auto operator()(F &&f) const noexcept {
+            return Compose<std::decay_t<F>>{std::forward<F>(f)};
+        }
+        
+        template<class F, class ...Fp>
+        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept {
+            return Compose<std::decay_t<F>, std::decay_t<Fp>...>
+                    {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
     };
 }
@@ -738,7 +846,7 @@ namespace fff {
              * If the container has push_back() method, apply it
              */
             template<template<class> class C, typename T>
-                requires tmf::backpushable<C>
+                requires backpushable<C>
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.push_back(val);
             }
@@ -748,7 +856,7 @@ namespace fff {
              * apply it
              */
             template<template<class> class C, typename T>
-                requires (not tmf::backpushable<C> and tmf::insertible<C>)
+                requires (not backpushable<C> and insertible<C>)
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.insert(val);
             }
@@ -812,7 +920,7 @@ namespace fff {
              * If the container has push_back() method, apply it
              */
             template<template<class> class C, typename T>
-                requires tmf::backpushable<C>
+                requires backpushable<C>
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.push_back(val);
             }
@@ -822,7 +930,7 @@ namespace fff {
              * apply it
              */
             template<template<class> class C, typename T>
-                requires (not tmf::backpushable<C> and tmf::insertible<C>)
+                requires (not backpushable<C> and insertible<C>)
             constexpr void operator()(C<T> &res_cont, const T &val) const noexcept {
                 res_cont.insert(val);
             }
@@ -955,42 +1063,44 @@ namespace fff {
     inline ConcatFactory            concat;
     inline ConcatenFactory          concaten;
     inline OverloadFactory          overload;
+    inline ComposeFactory           compose;
 }
-
-#ifndef NOUA
-#define NOUA [[no_unique_address]]
-#endif
 
 namespace fff {
     struct Package {
-        NOUA Each each;
-        NOUA Map map;
-        NOUA Filter filter;
-        NOUA Reject reject;
+        NOUA Each each{};
+        NOUA Map map{};
+        NOUA Filter filter{};
+        NOUA Reject reject{};
         
-        NOUA Some some;
-        NOUA Every every;
-        NOUA None none;
+        NOUA Some some{};
+        NOUA Every every{};
+        NOUA None none{};
         
-        NOUA AlwaysTrue always_true;
-        NOUA AlwaysFalse always_false;
+        NOUA AlwaysTrue always_true{};
+        NOUA AlwaysFalse always_false{};
         
-        NOUA IdentityAt<0> identity;
-        NOUA CopyAt<0> copy;
+        NOUA IdentityAt<0> identity{};
+        NOUA CopyAt<0> copy{};
         
-        NOUA OnceFactory once;
-        NOUA CountFactory count;
-        NOUA IdGiverFactory id_giver;
+        NOUA OnceFactory once{};
+        NOUA CountFactory count{};
+        NOUA IdGiverFactory id_giver{};
         
-        NOUA MaybeFactory maybe;
-        NOUA PipeCatch pipecatch;
-        NOUA OnFactory pipethrow;
+        NOUA MaybeFactory maybe{};
+        NOUA PipeCatch pipecatch{};
+        NOUA OnFactory pipethrow{};
         
-        NOUA ConcatFactory concat;
-        NOUA ConcatenFactory concaten;
-        NOUA OverloadFactory overload;
+        NOUA ConcatFactory concat{};
+        NOUA ConcatenFactory concaten{};
+        NOUA OverloadFactory overload{};
+        NOUA ComposeFactory compose{};
+        
+        Package() = default;
     };
 }
+
+static_assert(std::is_empty_v<fff::Package>, "the Package class should be empty");
 
 #undef NOUA
 #undef fn

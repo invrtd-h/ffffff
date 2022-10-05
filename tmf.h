@@ -1,7 +1,7 @@
 #ifndef UNDERSCORE_CPP_TMF_H
 #define UNDERSCORE_CPP_TMF_H
 
-namespace fff::tmf {
+namespace fff {
     
     template<typename T, typename U = T>
     concept addable = requires (T l, U r) {l + r;};

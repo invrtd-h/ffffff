@@ -6,13 +6,6 @@
 
 #include "classify.h"
 
-struct foo {
-    int a;
-    char b;
-    short c;
-    long long d;
-};
-
 class Bar {
     friend class fff::AsSingle<Bar>;
     
@@ -29,18 +22,13 @@ public:
 };
 
 int main() {
-    fff::Package f_{};
+    fff::Package f_;
     f220921<std::vector>();
     once_test();
     concat_test();
     
-    auto count = fff::count([](int n) {return n * n;});
-    
-    std::cout << count(10) << ' ' << count(20) << ' ' << count(30) << ' ' << count.get_count() << '\n';
-    
-    int got =
-            fff::pipethrow(1) >> multiply<3> >> multiply<3>
-                    >> multiply<3> >> multiply<3> >> fff::pipecatch;
-    
-    std::cout << sizeof(f_) << '\n';
+    auto g = f_.compose(
+        add<3>, add<5>, multiply<3>
+    );
+    std::cout << g(5) << '\n';
 }
