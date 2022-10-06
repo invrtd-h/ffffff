@@ -815,6 +815,11 @@ namespace fff {
             return Pipeline<std::decay_t<F>, std::decay_t<Fp>...>
                     {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
+    
+        template<class F>
+        constexpr auto operator>>(F &&f) const noexcept {
+            return Pipeline<std::decay_t<F>>{std::forward<F>(f)};
+        }
     };
 }
 
