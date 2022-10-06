@@ -43,6 +43,33 @@ namespace fff {
     concept any = true;
 }
 
+namespace fff {
+    template<typename ...Ts>
+    struct MultiReturn : public std::tuple<Ts...> {
+        using std::tuple<Ts...>::tuple;
+        
+        constexpr std::tuple<Ts...> to_tuple() const noexcept {
+            return static_cast<std::tuple<Ts...>>(*this);
+        }
+        
+        constexpr const static bool multi_return = true;
+    };
+    
+    struct MultiReturnFactory {
+        template<typename ...Ts>
+        constexpr auto operator()(Ts &&...ts) const noexcept {
+            return MultiReturn<std::decay_t<Ts>...>{ts...};
+        }
+    };
+    
+    template<typename T>
+    concept m_r = requires {
+        T::multi_return;
+    };
+    
+    inline MultiReturnFactory multi_return;
+}
+
 /*
  * fff::Identity impl
  */
@@ -113,7 +140,7 @@ namespace fff {
          * Template specification of IdentityAt<> (read upward)
          */
         template<class T, typename ...Args>
-        constexpr T operator()(T &&t, Args &&...args) const noexcept {
+        constexpr T operator()(T &&t, [[maybe_unused]] Args &&...args) const noexcept {
             return t;
         }
     };
@@ -138,7 +165,7 @@ namespace fff {
          * @return nothing
          */
         template<class ...Args>
-        constexpr void operator()(Args &&...args) const noexcept {
+        constexpr void operator()([[maybe_unused]] Args &&...args) const noexcept {
             // do nothing
         }
     };
@@ -167,7 +194,7 @@ namespace fff {
              * @return t, pre-defined value by definition of the callable (orthogonal to args)
              */
             template<class ...Args>
-            constexpr T operator()(Args &&...args) const noexcept {
+            constexpr T operator()([[maybe_unused]] Args &&...args) const noexcept {
                 return t;
             }
         };
@@ -677,13 +704,8 @@ namespace fff {
         }
     
         template<class G>
-        constexpr auto operator>>(G &&g) const & noexcept {
+        constexpr auto operator>>(G &&g) const noexcept {
             return Pipeline<F, std::decay_t<G>>{f, std::forward<G>(g)};
-        }
-    
-        template<class G>
-        constexpr auto operator>>(G &&g) const && noexcept {
-            return Pipeline<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
         }
     };
     
@@ -694,6 +716,7 @@ namespace fff {
         Pipeline<Fp...> f2;
     
         template<class ...Args>
+            requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const &
             noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
         {
@@ -701,12 +724,29 @@ namespace fff {
         }
         
         template<class ...Args>
+            requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const &&
             noexcept(noexcept(std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...))))
         {
             return std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...));
         }
     
+        template<class ...Args>
+            requires m_r<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) const &
+        noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
+        {
+            return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
+        }
+    
+        template<class ...Args>
+            requires m_r<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
+        {
+            return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
+        }
+    
         template<class G>
         constexpr auto operator>>(G &&g) const & noexcept {
             return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
@@ -723,19 +763,37 @@ namespace fff {
     struct Pipeline<F1, Fp...> {
         [[no_unique_address]] F1 f1;
         Pipeline<Fp...> f2;
-        
+    
         template<class ...Args>
+        requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const &
-            noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
+        noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
         {
             return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
         }
-        
+    
         template<class ...Args>
+        requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const &&
-            noexcept(noexcept(std::invoke(f2, std::invoke(std::move(f1), std::forward<Args>(args)...))))
+        noexcept(noexcept(std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...))))
         {
-            return std::invoke(f2, std::invoke(std::move(f1), std::forward<Args>(args)...));
+            return std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...));
+        }
+    
+        template<class ...Args>
+        requires m_r<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) const &
+        noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
+        {
+            return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
+        }
+    
+        template<class ...Args>
+        requires m_r<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
+        {
+            return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
         }
     
         template<class G>
@@ -754,19 +812,37 @@ namespace fff {
     struct Pipeline<F1, Fp...> {
         F1 f1;
         [[no_unique_address]] Pipeline<Fp...> f2;
-        
+    
         template<class ...Args>
+        requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const &
-            noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
+        noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
         {
             return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
         }
-        
+    
         template<class ...Args>
+        requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const &&
-            noexcept(noexcept(std::invoke(std::move(f2), std::invoke(f1, std::forward<Args>(args)...))))
+        noexcept(noexcept(std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...))))
         {
-            return std::invoke(std::move(f2), std::invoke(f1, std::forward<Args>(args)...));
+            return std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...));
+        }
+    
+        template<class ...Args>
+        requires m_r<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) const &
+        noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
+        {
+            return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
+        }
+    
+        template<class ...Args>
+        requires m_r<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
+        {
+            return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
         }
     
         template<class G>
@@ -785,22 +861,26 @@ namespace fff {
     struct Pipeline<F1, Fp...> {
         [[no_unique_address]] F1 f1;
         [[no_unique_address]] Pipeline<Fp...> f2;
-        
+    
         template<class ...Args>
+        requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
+        noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
         {
             return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
         }
     
-        template<class G>
-        constexpr auto operator>>(G &&g) const & noexcept {
-            return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
+        template<class ...Args>
+        requires m_r<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) const
+        noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
+        {
+            return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
         }
     
         template<class G>
-        constexpr auto operator>>(G &&g) const && noexcept {
-            return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
+        constexpr auto operator>>(G &&g) const noexcept {
+            return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
         }
     };
     
@@ -1103,6 +1183,8 @@ namespace fff {
 
 namespace fff {
     struct Package {
+        NOUA MultiReturnFactory multi_return{};
+        
         NOUA Each each{};
         NOUA Map map{};
         NOUA Filter filter{};

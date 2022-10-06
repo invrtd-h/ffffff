@@ -47,13 +47,7 @@ namespace fff {
     
     template<typename T>
     concept nonempty_type = (not std::is_empty_v<T>);
-    
-    template<typename T>
-    concept v_to_nv = (not std::is_void_v<std::invoke_result_t<T>>);
-    
-    template<typename T>
-    concept v_to_v = std::is_void_v<std::invoke_result_t<T>>;
-    
+
     template<typename T>
     concept hidden = (not std::move_constructible<T> and not std::copy_constructible<T>);
 }
