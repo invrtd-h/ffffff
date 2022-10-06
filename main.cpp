@@ -21,6 +21,10 @@ public:
     }
 };
 
+class Foo {
+    [[no_unique_address]] int x;
+};
+
 int main() {
     using fff::Package;
     
@@ -51,4 +55,6 @@ int main() {
     
     auto g3 = f.pipeline >> g1 >> g2;
     std::cout << g3(4) << '\n';
+    
+    std::cout << sizeof(h2) << ' ' << sizeof(g3) << '\n';
 }

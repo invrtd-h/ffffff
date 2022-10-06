@@ -533,6 +533,13 @@ namespace fff {
     };
 }
 
+/**
+ * fff::If impl
+ */
+namespace fff {
+
+}
+
 /*
  * fff::Concat impl
  */
@@ -540,8 +547,8 @@ namespace fff {
     
     template<class Fn_1, class Fn_2>
     class Concat {
-        Fn_1 f_1;
-        Fn_2 f_2;
+        [[no_unique_address]] Fn_1 f_1;
+        [[no_unique_address]] Fn_2 f_2;
     public:
         using F1 = Fn_1;
         using F2 = Fn_2;
@@ -656,9 +663,9 @@ namespace fff {
     template<class F, class ...Fp>
     struct Pipeline;
     
-    template<nonempty_type F>
+    template<class F>
     struct Pipeline<F> {
-        F f;
+        [[no_unique_address]] F f;
     
         template<class ...Args>
         constexpr auto operator()(Args &&...args) const &
@@ -685,35 +692,10 @@ namespace fff {
         }
     };
     
-    template<empty_type F>
-    struct Pipeline<F> {
-        [[no_unique_address]] F f;
-        
-        template<class ...Args>
-        constexpr auto operator()(Args &&...args) const &
-        noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
-        {
-            return std::invoke(f, std::forward<Args>(args)...);
-        }
-        
-        template<class ...Args>
-        constexpr auto operator()(Args &&...args) const &&
-        noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
-        {
-            return std::invoke(std::move(f), std::forward<Args>(args)...);
-        }
-    
-        template<class G>
-        constexpr auto operator>>(G &&g) const noexcept {
-            return Pipeline<F, std::decay_t<G>>{f, std::forward<G>(g)};
-        }
-    };
-    
-    template<nonempty_type F1, class ...Fp>
-        requires nonempty_type<Pipeline<Fp...>>
-    struct Pipeline<F1, Fp...> {
-        F1 f1;
-        Pipeline<Fp...> f2;
+    template<class F1, class ...Fp>
+    struct Pipeline {
+        [[no_unique_address]] F1 f1;
+        [[no_unique_address]] Pipeline<Fp...> f2;
     
         template<class ...Args>
             requires (not m_r<std::invoke_result_t<F1, Args...>>)
@@ -755,132 +737,6 @@ namespace fff {
         template<class G>
         constexpr auto operator>>(G &&g) const && noexcept {
             return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
-        }
-    };
-    
-    template<empty_type F1, class ...Fp>
-        requires nonempty_type<Pipeline<Fp...>>
-    struct Pipeline<F1, Fp...> {
-        [[no_unique_address]] F1 f1;
-        Pipeline<Fp...> f2;
-    
-        template<class ...Args>
-        requires (not m_r<std::invoke_result_t<F1, Args...>>)
-        constexpr auto operator()(Args &&...args) const &
-        noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
-        {
-            return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
-        }
-    
-        template<class ...Args>
-        requires (not m_r<std::invoke_result_t<F1, Args...>>)
-        constexpr auto operator()(Args &&...args) const &&
-        noexcept(noexcept(std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...))))
-        {
-            return std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...));
-        }
-    
-        template<class ...Args>
-        requires m_r<std::invoke_result_t<F1, Args...>>
-        constexpr auto operator()(Args &&...args) const &
-        noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
-        {
-            return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
-        }
-    
-        template<class ...Args>
-        requires m_r<std::invoke_result_t<F1, Args...>>
-        constexpr auto operator()(Args &&...args) const &&
-        noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
-        {
-            return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
-        }
-    
-        template<class G>
-        constexpr auto operator>>(G &&g) const & noexcept {
-            return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
-        }
-    
-        template<class G>
-        constexpr auto operator>>(G &&g) const && noexcept {
-            return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
-        }
-    };
-    
-    template<nonempty_type F1, class ...Fp>
-        requires empty_type<Pipeline<Fp...>>
-    struct Pipeline<F1, Fp...> {
-        F1 f1;
-        [[no_unique_address]] Pipeline<Fp...> f2;
-    
-        template<class ...Args>
-        requires (not m_r<std::invoke_result_t<F1, Args...>>)
-        constexpr auto operator()(Args &&...args) const &
-        noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
-        {
-            return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
-        }
-    
-        template<class ...Args>
-        requires (not m_r<std::invoke_result_t<F1, Args...>>)
-        constexpr auto operator()(Args &&...args) const &&
-        noexcept(noexcept(std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...))))
-        {
-            return std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...));
-        }
-    
-        template<class ...Args>
-        requires m_r<std::invoke_result_t<F1, Args...>>
-        constexpr auto operator()(Args &&...args) const &
-        noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
-        {
-            return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
-        }
-    
-        template<class ...Args>
-        requires m_r<std::invoke_result_t<F1, Args...>>
-        constexpr auto operator()(Args &&...args) const &&
-        noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
-        {
-            return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
-        }
-    
-        template<class G>
-        constexpr auto operator>>(G &&g) const & noexcept {
-            return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
-        }
-    
-        template<class G>
-        constexpr auto operator>>(G &&g) const && noexcept {
-            return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
-        }
-    };
-    
-    template<empty_type F1, class ...Fp>
-        requires empty_type<Pipeline<Fp...>>
-    struct Pipeline<F1, Fp...> {
-        [[no_unique_address]] F1 f1;
-        [[no_unique_address]] Pipeline<Fp...> f2;
-    
-        template<class ...Args>
-        requires (not m_r<std::invoke_result_t<F1, Args...>>)
-        constexpr auto operator()(Args &&...args) const
-        noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
-        {
-            return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
-        }
-    
-        template<class ...Args>
-        requires m_r<std::invoke_result_t<F1, Args...>>
-        constexpr auto operator()(Args &&...args) const
-        noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
-        {
-            return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
-        }
-    
-        template<class G>
-        constexpr auto operator>>(G &&g) const noexcept {
-            return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
         }
     };
     
