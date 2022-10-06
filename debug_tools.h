@@ -124,20 +124,31 @@ auto add_r = [](int &n) -> void {n += N;};
 template<int N>
 auto multiply_r = [](int &n) -> void {n *= N;};
 
+auto drop_negative = [](int n) {
+    return n >= 0 ? fff::maybe(n) : fff::maybe.make_nullopt<int>();
+};
+
+auto pass = [](const int &n) {
+    std::cout << "passed " << n << '\n';
+    return n;
+};
+
 void maybe_test() {
     auto may = fff::maybe(1);
     auto may_copy = may >> multiply<3> >> add<6>;
     
     std::cout << may.value() << ' ' << may_copy.value() << '\n';
     
-    may << multiply_r<41771> << add_r<7110>;
+    auto may3 = may >> multiply<60> >> drop_negative >> pass;
+    static_assert(std::is_same_v<decltype(may3), decltype(may)>);
+    std::cout << typeid(may).name() << ' ' << typeid(may3).name() << '\n';
     
-    std::cout << may.value() << '\n';
-    
-    auto may_not = fff::maybe.make<int>();
+    auto may_not = fff::maybe.make_nullopt<int>();
     may_not << multiply_r<41771>;
     
     std::cout << may_not.has_value() << '\n';
+    
+    
 }
 
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H

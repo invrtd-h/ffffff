@@ -22,13 +22,19 @@ public:
 };
 
 int main() {
-    fff::Package f_;
-    f220921<std::vector>();
-    once_test();
-    concat_test();
+    using namespace fff;
     
-    auto g = f_.compose(
-        add<3>, add<5>, multiply<3>
+    Package f;
+    
+    auto g = f.pipeline(
+        add<2>,
+        add<4>,
+        multiply<3>,
+        add<4>
     );
+    
     std::cout << g(5) << '\n';
+    
+    auto h = g >> multiply<3> >> add<7>;
+    std::cout << h(5) << '\n';
 }
