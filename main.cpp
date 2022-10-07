@@ -22,7 +22,7 @@ public:
 };
 
 class Foo {
-    [[no_unique_address]] int x;
+    int a, b, c, d;
 };
 
 int main() {
@@ -57,4 +57,6 @@ int main() {
     std::cout << g3(4) << '\n';
     
     std::cout << sizeof(h2) << ' ' << sizeof(g3) << '\n';
+    
+    
 }

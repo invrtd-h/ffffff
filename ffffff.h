@@ -13,6 +13,7 @@
 #include <iostream>
 #include <concepts>
 #include <utility>
+#include <memory>
 #include <ranges>
 #include <tuple>
 
@@ -48,7 +49,7 @@ namespace fff {
     struct MultiReturn : public std::tuple<Ts...> {
         using std::tuple<Ts...>::tuple;
         
-        constexpr std::tuple<Ts...> to_tuple() const noexcept {
+        constexpr auto to_tuple() const noexcept -> std::tuple<Ts...> {
             return static_cast<std::tuple<Ts...>>(*this);
         }
         
@@ -57,8 +58,10 @@ namespace fff {
     
     struct MultiReturnFactory {
         template<typename ...Ts>
-        constexpr auto operator()(Ts &&...ts) const noexcept {
-            return MultiReturn<std::decay_t<Ts>...>{ts...};
+        constexpr auto operator()(Ts &&...ts) const noexcept
+        -> MultiReturn<std::decay_t<Ts>...>
+        {
+            return {std::forward<Ts>(ts)...};
         }
     };
     
@@ -232,12 +235,11 @@ namespace fff {
     class Once;
     
     template<class F>
-        requires (not std::is_void_v<std::invoke_result_t<F>>
-                and not std::is_empty_v<F>)
+        requires (not std::is_void_v<std::invoke_result_t<F>>)
     class Once<F> {
         friend class OnceFactory;
     
-        F f;
+        [[no_unique_address]] F f;
         mutable std::invoke_result_t<F> memo;
         mutable bool flag;
     
@@ -245,8 +247,9 @@ namespace fff {
         constexpr explicit Once(F &&f) noexcept : f(std::move(f)), flag(false) {}
 
     public:
-        constexpr std::invoke_result_t<F> operator()() const
+        constexpr auto operator()() const
             noexcept(noexcept(std::invoke(f)))
+        -> std::invoke_result_t<F>
         {
             if (flag) {
                 return memo;
@@ -257,36 +260,11 @@ namespace fff {
     };
     
     template<class F>
-    requires (not std::is_void_v<std::invoke_result_t<F>>
-              and std::is_empty_v<F>)
+    requires std::is_void_v<std::invoke_result_t<F>>
     class Once<F> {
         friend class OnceFactory;
         
-        mutable std::invoke_result_t<F> memo;
-        mutable bool flag;
-        
-        constexpr explicit Once(const F &f) noexcept : flag(false) {}
-        constexpr explicit Once(F &&f) noexcept : flag(false) {}
-    
-    public:
-        constexpr std::invoke_result_t<F> operator()() const
-            noexcept(noexcept(std::invoke(F())))
-        {
-            if (flag) {
-                return memo;
-            }
-            flag = true;
-            return memo = std::invoke(F());
-        }
-    };
-    
-    template<class F>
-    requires (std::is_void_v<std::invoke_result_t<F>>
-              and not std::is_empty_v<F>)
-    class Once<F> {
-        friend class OnceFactory;
-        
-        F f;
+        [[no_unique_address]] F f;
         mutable bool flag;
         
         constexpr explicit Once(const F &f) noexcept : f(f), flag(false) {}
@@ -304,48 +282,24 @@ namespace fff {
         }
     };
     
-    template<class F>
-    requires (std::is_void_v<std::invoke_result_t<F>>
-              and std::is_empty_v<F>)
-    class Once<F> {
-        friend class OnceFactory;
-        
-        mutable bool flag;
-        
-        constexpr explicit Once(const F &f) noexcept : flag(false) {}
-        constexpr explicit Once(F &&f) noexcept : flag(false) {}
-    
-    public:
-        constexpr void operator()() const
-            noexcept(noexcept(std::invoke(F())))
-        {
-            if (flag) {
-                return;
-            }
-            flag = true;
-            std::invoke(F());
-        }
-    };
-    
     struct OnceFactory {
-        template<class F>
-            requires std::invocable<F>
-        constexpr auto operator()(F &&f) noexcept {
-            return Once<F>(std::forward<F>(f));
+        template<std::invocable F>
+        constexpr auto operator()(F &&f) noexcept
+        -> Once<F>
+        {
+            return Once<F>{std::forward<F>(f)};
         }
     };
 }
 
 /* fff::Count impl */
 namespace fff {
-    template<class F>
-    class Count;
     
-    template<nonempty_type F>
-    class Count<F> {
+    template<class F>
+    class Count {
         friend class CountFactory;
         
-        F f;
+        [[no_unique_address]] F f;
         mutable int cnt;
         
         constexpr explicit Count(const F &f) noexcept : f(f), cnt(0) {}
@@ -365,33 +319,11 @@ namespace fff {
         }
     };
     
-    template<empty_type F>
-    class Count<F> {
-        friend class CountFactory;
-        
-        [[no_unique_address]] F f;
-        mutable int cnt;
-    
-        constexpr explicit Count(const F &f) noexcept : cnt(0) {}
-        constexpr explicit Count(F &&f) noexcept : cnt(0) {}
-    
-    public:
-        template<class ...Args>
-            requires std::invocable<F, Args...>
-        constexpr auto operator()(Args ...args) const
-            noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
-        {
-            ++cnt;
-            return std::invoke(f, std::forward<Args>(args)...);
-        }
-        constexpr int get_count() const noexcept {
-            return cnt;
-        }
-    };
-    
     struct CountFactory {
         template<class F>
-        constexpr auto operator()(F &&f) const noexcept {
+        constexpr auto operator()(F &&f) const noexcept
+        -> Count<F>
+        {
             return Count<F>(std::forward<F>(f));
         }
     };
@@ -414,6 +346,43 @@ namespace fff {
 namespace fff {
 
 }
+
+/*
+ * fff::Fly impl
+ * @todo test the code
+ */
+namespace fff {
+    template<class F>
+    class Fly {
+        std::unique_ptr<F> p;
+        
+    public:
+        constexpr explicit Fly(const F &f) : p(new F(f)) {}
+        constexpr explicit Fly(F &&f) : p(new F(std::move(f))) {}
+        
+        constexpr Fly(const Fly &fly) : p(new F(*fly.p)) {}
+        constexpr Fly &operator=(const Fly &fly) {
+            p = std::make_unique<F>(*fly.p);
+            return *this;
+        }
+    
+        template<class ...Args>
+        constexpr auto operator()(Args &&...args) const
+        noexcept(noexcept(std::invoke(*p, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(*p, std::forward<Args>(args)...);
+        }
+    };
+    
+    struct FlyFactory {
+        template<class F>
+        constexpr auto operator()(F &&f) const noexcept -> Fly<F> {
+            return Fly<F>(std::forward<F>(f));
+        }
+    };
+}
+
 
 /*
  * fff::pipethrow(), fff::pipecatch impl
@@ -450,7 +419,9 @@ namespace fff {
     
     struct PipeThrow {
         template<typename T>
-        constexpr auto operator()(T t) const {
+        constexpr auto operator()(T t) const noexcept
+        -> On<T>
+        {
             return On<T>(t);
         }
     };
@@ -522,12 +493,16 @@ namespace fff {
 
     struct MaybeFactory {
         template<typename T>
-        constexpr auto operator()(T &&t) const noexcept {
+        constexpr auto operator()(T &&t) const noexcept
+        -> Maybe<std::decay_t<T>>
+        {
             return Maybe<std::decay_t<T>>(std::forward<T>(t));
         }
         
         template<typename T>
-        constexpr auto make_nullopt() const noexcept {
+        constexpr auto make_nullopt() const noexcept
+        -> Maybe<T>
+        {
             return Maybe<T>();
         }
     };
@@ -537,7 +512,12 @@ namespace fff {
  * fff::If impl
  */
 namespace fff {
-
+    template<class F_pred, class F1, class F2>
+    struct If {
+        [[no_unique_address]] F_pred f_pred;
+        [[no_unique_address]] F1 f1;
+        [[no_unique_address]] F2 f2;
+    };
 }
 
 /*
@@ -550,9 +530,6 @@ namespace fff {
         [[no_unique_address]] Fn_1 f_1;
         [[no_unique_address]] Fn_2 f_2;
     public:
-        using F1 = Fn_1;
-        using F2 = Fn_2;
-    
         template<class U1, class U2>
         constexpr Concat(U1 &&f1, U2 &&f2) noexcept
                 : f_1(std::forward<U1>(f1)), f_2(std::forward<U2>(f2)) {}
@@ -576,8 +553,9 @@ namespace fff {
     
     struct ConcatFactory {
         template<class F1, class F2>
-        constexpr auto operator()(F1 &&f1, F2 &&f2) const noexcept {
-            return Concat<F1, F2>(std::forward<F1>(f1), std::forward<F2>(f2));
+        constexpr auto operator()(F1 &&f1, F2 &&f2) const noexcept -> Concat<F1, F2>
+        {
+            return {std::forward<F1>(f1), std::forward<F2>(f2)};
         }
     
         template<class F1, class F2, class... Fp>
@@ -599,8 +577,10 @@ namespace fff {
     
     struct OverloadFactory {
         template<class ...Fp>
-        constexpr auto operator()(Fp &&...fp) const noexcept {
-            return Overload<std::remove_reference_t<Fp>...>{std::forward<Fp>(fp)...};
+        constexpr auto operator()(Fp &&...fp) const noexcept
+        -> Overload<std::remove_reference_t<Fp>...>
+        {
+            return {std::forward<Fp>(fp)...};
         }
     };
 }
@@ -643,14 +623,17 @@ namespace fff {
     
     struct ConcatenFactory {
         template<class F>
-        constexpr auto operator()(F &&f) const noexcept {
-            return Concaten<std::remove_reference_t<F>>{std::forward<F>(f)};
+        constexpr auto operator()(F &&f) const noexcept
+        -> Concaten<std::remove_reference_t<F>>
+        {
+            return {std::forward<F>(f)};
         }
         
         template<class F, class ...Fp>
-        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept {
-            return Concaten<std::remove_reference_t<F>, std::remove_reference_t<Fp>...>
-                    {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
+        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept
+        -> Concaten<std::remove_reference_t<F>, std::remove_reference_t<Fp>...>
+        {
+            return {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
     };
 }
@@ -730,31 +713,40 @@ namespace fff {
         }
     
         template<class G>
-        constexpr auto operator>>(G &&g) const & noexcept {
+        constexpr auto operator>>(G &&g) const & noexcept
+        -> Pipeline<F1, Fp..., std::decay_t<G>>
+        {
             return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
         }
     
         template<class G>
-        constexpr auto operator>>(G &&g) const && noexcept {
+        constexpr auto operator>>(G &&g) const && noexcept
+        -> Pipeline<F1, Fp..., std::decay_t<G>>
+        {
             return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
         }
     };
     
     struct PipelineFactory {
         template<class F>
-        constexpr auto operator()(F &&f) const noexcept {
-            return Pipeline<std::decay_t<F>>{std::forward<F>(f)};
+        constexpr auto operator()(F &&f) const noexcept
+        -> Pipeline<std::decay_t<F>>
+        {
+            return {std::forward<F>(f)};
         }
         
         template<class F, class ...Fp>
-        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept {
-            return Pipeline<std::decay_t<F>, std::decay_t<Fp>...>
-                    {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
+        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept
+        -> Pipeline<std::decay_t<F>, std::decay_t<Fp>...>
+        {
+            return {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
     
         template<class F>
-        constexpr auto operator>>(F &&f) const noexcept {
-            return Pipeline<std::decay_t<F>>{std::forward<F>(f)};
+        constexpr auto operator>>(F &&f) const noexcept
+        -> Pipeline<std::decay_t<F>>
+        {
+            return {std::forward<F>(f)};
         }
     };
 }
