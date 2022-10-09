@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iostream>
 #include <concepts>
+#include <sstream>
 #include <utility>
 #include <memory>
 #include <ranges>
@@ -405,6 +406,19 @@ namespace fff {
         {
             return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), data));
         }
+        
+        constexpr T &operator*() & noexcept {
+            return data;
+        }
+        constexpr const T &operator*() const & noexcept {
+            return data;
+        }
+        constexpr T &&operator*() && noexcept {
+            return data;
+        }
+        constexpr const T &&operator*() const && noexcept {
+            return data;
+        }
     };
     
     struct PipeThrow {
@@ -503,7 +517,27 @@ namespace fff {
 namespace fff {
     template<typename T>
     class Log {
-
+        T data;
+        std::stringstream log;
+        
+    public:
+        constexpr explicit Log(const T &data) noexcept : data(data) {}
+        constexpr explicit Log(T &&data) noexcept : data(std::move(data)) {}
+        
+        template<std::invocable<T> F>
+        constexpr auto operator>>(F &&f) const
+        noexcept(noexcept(1))
+        -> Log<std::invoke_result_t<F, T>>
+        {
+            // @todo implement
+        }
+        
+        constexpr std::string emit() {
+            std::string temp;
+            log >> temp;
+            
+            return temp;
+        }
     };
 }
 
@@ -511,57 +545,34 @@ namespace fff {
  * fff::If impl
  */
 namespace fff {
-    template<class F_pred, class F1, class F2>
-    struct If {
+    template<template<class...> class Pred, class F1, class F2>
+    class If {
+        friend class IfFactory;
+        
         [[no_unique_address]] F1 f1;
         [[no_unique_address]] F2 f2;
-    };
-}
-
-/*
- * fff::Concat impl
- */
-namespace fff {
     
-    template<class Fn_1, class Fn_2>
-    class Concat {
-        [[no_unique_address]] Fn_1 f_1;
-        [[no_unique_address]] Fn_2 f_2;
+        template<class G1, class G2>
+        constexpr If(G1 &&g1, G2 &&g2) noexcept
+            : f1(std::forward<G1>(g1)), f2(std::forward<G2>(g2)) {}
     public:
-        template<class U1, class U2>
-        constexpr Concat(U1 &&f1, U2 &&f2) noexcept
-                : f_1(std::forward<U1>(f1)), f_2(std::forward<U2>(f2)) {}
-    
-        template<class... Args>
-            requires std::invocable<Fn_1, Args...>
+        
+        template<typename ...Args>
+            requires Pred<F1, F2, Args...>::value
         constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(f_1(std::forward<Args>(args)...)))
-        -> std::invoke_result_t<Fn_1, Args...>
+            noexcept(noexcept(std::invoke(f1, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F1, Args...>
         {
-            return f_1(std::forward<Args>(args)...);
+            return std::invoke(f1, std::forward<Args>(args)...);
         }
     
-        template<class... Args>
-            requires (not std::invocable<Fn_1, Args...> and std::invocable<Fn_2, Args...>)
+        template<typename ...Args>
+            requires (not Pred<F1, F2, Args...>::value)
         constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(f_2(std::forward<Args>(args)...)))
-            -> std::invoke_result_t<Fn_2, Args...>
+            noexcept(noexcept(std::invoke(f2, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F2, Args...>
         {
-            return f_2(std::forward<Args>(args)...);
-        }
-    };
-    
-    struct ConcatFactory {
-        template<class F1, class F2>
-        constexpr auto operator()(F1 &&f1, F2 &&f2) const noexcept -> Concat<F1, F2>
-        {
-            return {std::forward<F1>(f1), std::forward<F2>(f2)};
-        }
-    
-        template<class F1, class F2, class... Fp>
-        constexpr auto operator()(F1 &&f1, F2 &&f2, Fp &&...fp) const noexcept {
-            return operator()(Concat<F1, F2>(std::forward<F1>(f1), std::forward<F2>(f2)),
-                              std::forward<Fp>(fp)...);
+            return std::invoke(f2, std::forward<Args>(args)...);
         }
     };
 }
@@ -648,7 +659,98 @@ namespace fff {
     
     template<class F>
     class Parallel<F> {
+        friend class ParallelFactory;
+        
         [[no_unique_address]] F f;
+        
+        constexpr explicit Parallel(const F &f) noexcept : f(f) {}
+        constexpr explicit Parallel(F &&f) noexcept : f(std::move(f)) {}
+        
+    public:
+        template<typename ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &
+            noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(f, std::forward<Args>(args)...);
+        }
+    
+        template<typename ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
+    };
+    
+    template<class F, class ...Fp>
+    class Parallel {
+        friend class ParallelFactory;
+        
+        [[no_unique_address]] F f;
+        [[no_unique_address]] Parallel<Fp...> pfp;
+    
+        template<class U1, class U2>
+        constexpr Parallel(U1 &&f, U2 &&pfp) noexcept
+            : f(std::forward<U1>(f)), pfp(std::forward<U2>(pfp)) {}
+        
+    public:
+        template<typename ...Args>
+        requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &
+        noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(f, std::forward<Args>(args)...);
+        }
+    
+        template<typename ...Args>
+        requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
+    
+        template<typename ...Args>
+        requires (not std::invocable<F, Args...>
+                and std::invocable<Parallel<Fp...>, Args...>)
+        constexpr auto operator()(Args &&...args) const &
+        noexcept(noexcept(std::invoke(pfp, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<Parallel<Fp...>, Args...>
+        {
+            return std::invoke(pfp, std::forward<Args>(args)...);
+        }
+    
+        template<typename ...Args>
+        requires (not std::invocable<F, Args...>
+                  and std::invocable<Parallel<Fp...>, Args...>)
+        constexpr auto operator()(Args &&...args) const &&
+        noexcept(noexcept(std::invoke(std::move(pfp), std::forward<Args>(args)...)))
+        -> std::invoke_result_t<Parallel<Fp...>, Args...>
+        {
+            return std::invoke(std::move(pfp), std::forward<Args>(args)...);
+        }
+    };
+    
+    struct ParallelFactory {
+        template<class F>
+        constexpr auto operator()(F &&f) const noexcept -> Parallel<std::decay_t<F>>
+        {
+            return Parallel<std::decay_t<F>>(std::forward<F>(f));
+        }
+    
+        template<class F, class ...Fp>
+        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept
+        -> Parallel<std::decay_t<F>, std::decay_t<Fp>...>
+        {
+            return Parallel<std::decay_t<F>, std::decay_t<Fp>...>
+                    (std::forward<F>(f), operator()(std::forward<Fp>(fp)...));
+        }
     };
 }
 
@@ -661,9 +763,15 @@ namespace fff {
     struct Pipeline;
     
     template<class F>
-    struct Pipeline<F> {
+    class Pipeline<F> {
+        friend class PipelineFactory;
+        
         [[no_unique_address]] F f;
-    
+
+    public:
+        constexpr explicit Pipeline(F &&f) noexcept : f(std::move(f)) {}
+        constexpr explicit Pipeline(const F &f) noexcept : f(f) {}
+
         template<class ...Args>
         constexpr auto operator()(Args &&...args) const &
         noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
@@ -690,10 +798,17 @@ namespace fff {
     };
     
     template<class F1, class ...Fp>
-    struct Pipeline {
+    class Pipeline {
+        friend class PipelineFactory;
+        
         [[no_unique_address]] F1 f1;
         [[no_unique_address]] Pipeline<Fp...> f2;
-    
+
+    public:
+        template<class U1, class U2>
+        constexpr Pipeline(U1 &&f1, U2 &&f2) noexcept
+            : f1(std::forward<U1>(f1)), f2(std::forward<U2>(f2)) {}
+
         template<class ...Args>
             requires (not m_r<std::invoke_result_t<F1, Args...>>)
         constexpr auto operator()(Args &&...args) const &
@@ -746,21 +861,22 @@ namespace fff {
         constexpr auto operator()(F &&f) const noexcept
         -> Pipeline<std::decay_t<F>>
         {
-            return {std::forward<F>(f)};
+            return Pipeline<std::decay_t<F>>{std::forward<F>(f)};
         }
         
         template<class F, class ...Fp>
         constexpr auto operator()(F &&f, Fp &&...fp) const noexcept
         -> Pipeline<std::decay_t<F>, std::decay_t<Fp>...>
         {
-            return {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
+            return Pipeline<std::decay_t<F>, std::decay_t<Fp>...>
+                    {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
     
         template<class F>
         constexpr auto operator>>(F &&f) const noexcept
         -> Pipeline<std::decay_t<F>>
         {
-            return {std::forward<F>(f)};
+            return Pipeline<std::decay_t<F>>{std::forward<F>(f)};
         }
     };
 }
@@ -1035,8 +1151,8 @@ namespace fff {
     inline PipeCatch                pipecatch;
     inline PipeThrow                pipethrow;
     
-    inline ConcatFactory            concat;
     inline ConcatenFactory          concaten;
+    inline ParallelFactory          parallel;
     inline OverloadFactory          overload;
     inline PipelineFactory          pipeline;
 }
@@ -1070,8 +1186,8 @@ namespace fff {
         [[no_unique_address]] PipeCatch pipecatch{};
         [[no_unique_address]] PipeThrow pipethrow{};
     
-        [[no_unique_address]] ConcatFactory concat{};
         [[no_unique_address]] ConcatenFactory concaten{};
+        [[no_unique_address]] ParallelFactory parallel{};
         [[no_unique_address]] OverloadFactory overload{};
         [[no_unique_address]] PipelineFactory pipeline{};
         

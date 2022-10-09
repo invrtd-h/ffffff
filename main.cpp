@@ -57,7 +57,4 @@ int main() {
     std::cout << g3(4) << '\n';
     
     std::cout << sizeof(h2) << ' ' << sizeof(g3) << '\n';
-    
-    fly_test();
-    maybe_test();
 }

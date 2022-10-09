@@ -169,4 +169,24 @@ void fly_test() {
     static_assert(sizeof(g) == 8);
 }
 
+void parallel_test() {
+    fff::Package f;
+    
+    int r = 3;
+    
+    auto print_str = [](const std::string &s) {std::cout << s << '\n';};
+    
+    auto g = f.parallel(
+            [r](int n) {std::cout << n * 2 + r << '\n';},
+            [r](double n) {std::cout << n * 2 + r << '\n';},
+            print_str
+    );
+    
+    g(1);
+    g(4.9);
+    g("My New String");
+    
+    std::cout << "The sizeof g is " << sizeof(g) << '\n';
+}
+
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H
