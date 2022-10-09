@@ -5,8 +5,6 @@
 #ifndef UNDERSCORE_CPP_FFFFFF_H
 #define UNDERSCORE_CPP_FFFFFF_H
 
-#define NOUA [[no_unique_address]]
-
 #include <type_traits>
 #include <functional>
 #include <algorithm>
@@ -18,8 +16,6 @@
 #include <tuple>
 
 #include "tmf.h"
-
-using namespace std::placeholders;
 
 namespace fff::pol {
     /**
@@ -37,11 +33,6 @@ namespace fff::pol {
     struct ExecutionPolicy {
         static constexpr bool is_execution_policy = true;
     };
-}
-
-namespace fff {
-    template<typename T>
-    concept any = true;
 }
 
 namespace fff {
@@ -349,7 +340,6 @@ namespace fff {
 
 /*
  * fff::Fly impl
- * @todo test the code
  */
 namespace fff {
     template<class F>
@@ -436,9 +426,7 @@ namespace fff {
     public:
         constexpr static bool is_maybe = true;
         
-        template<class ...Args>
-            requires std::is_constructible_v<std::optional<T>, Args...>
-        constexpr Maybe<T>(Args &&...args) noexcept : std::optional<T>(std::forward<Args>(args)...) {}
+        using std::optional<T>::optional;
         
         /**
          * Lift : (T -> U) -> (M<T> -> M<U>)
@@ -509,12 +497,22 @@ namespace fff {
 }
 
 /**
+ * fff::Log impl
+ */
+ 
+namespace fff {
+    template<typename T>
+    class Log {
+
+    };
+}
+
+/**
  * fff::If impl
  */
 namespace fff {
     template<class F_pred, class F1, class F2>
     struct If {
-        [[no_unique_address]] F_pred f_pred;
         [[no_unique_address]] F1 f1;
         [[no_unique_address]] F2 f2;
     };
@@ -538,6 +536,7 @@ namespace fff {
             requires std::invocable<Fn_1, Args...>
         constexpr auto operator()(Args &&...args) const
             noexcept(noexcept(f_1(std::forward<Args>(args)...)))
+        -> std::invoke_result_t<Fn_1, Args...>
         {
             return f_1(std::forward<Args>(args)...);
         }
@@ -546,6 +545,7 @@ namespace fff {
             requires (not std::invocable<Fn_1, Args...> and std::invocable<Fn_2, Args...>)
         constexpr auto operator()(Args &&...args) const
             noexcept(noexcept(f_2(std::forward<Args>(args)...)))
+            -> std::invoke_result_t<Fn_2, Args...>
         {
             return f_2(std::forward<Args>(args)...);
         }
@@ -635,6 +635,20 @@ namespace fff {
         {
             return {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
+    };
+}
+
+/*
+ * fff::Parallel impl
+ */
+
+namespace fff {
+    template<class F, class ...Fp>
+    class Parallel;
+    
+    template<class F>
+    class Parallel<F> {
+        [[no_unique_address]] F f;
     };
 }
 
@@ -749,6 +763,13 @@ namespace fff {
             return {std::forward<F>(f)};
         }
     };
+}
+
+/*
+ * fff::StaticBind impl
+ */
+namespace fff {
+
 }
 
 namespace fff {
@@ -922,16 +943,6 @@ namespace fff {
         };
     };
     
-    template<class FuncObj>
-    struct FilterWith {
-        template<class Cont>
-        constexpr auto operator()(Cont &cont) const
-            noexcept(noexcept(FuncObj()(cont[0])))
-        {
-            return Filter()(cont, FuncObj());
-        }
-    };
-    
     struct Reject {
         template<class Cont, class FuncObj>
             requires std::ranges::range<Cont>
@@ -949,8 +960,8 @@ namespace fff {
             requires std::ranges::range<Cont>
                  and std::convertible_to<std::invoke_result_t
                          <FuncObj, std::remove_cv_t<typename Cont::value_type &>>, bool>
-        constexpr bool operator()(const Cont &cont, const FuncObj &func) const
-            noexcept(noexcept(func(cont[0])))
+        constexpr auto operator()(const Cont &cont, const FuncObj &func) const
+            noexcept(noexcept(func(cont[0]))) -> bool
         {
             for (auto &v : cont) {
                 if (static_cast<bool>(std::invoke(func, v)) == func_ret) {
@@ -1018,8 +1029,9 @@ namespace fff {
     inline CountFactory             count;
     inline IdGiverFactory           id_giver;
     
-    inline MaybeFactory             maybe;
+    inline FlyFactory               fly;
     
+    inline MaybeFactory             maybe;
     inline PipeCatch                pipecatch;
     inline PipeThrow                pipethrow;
     
@@ -1031,43 +1043,43 @@ namespace fff {
 
 namespace fff {
     struct Package {
-        NOUA MultiReturnFactory multi_return{};
-        
-        NOUA Each each{};
-        NOUA Map map{};
-        NOUA Filter filter{};
-        NOUA Reject reject{};
-        
-        NOUA Some some{};
-        NOUA Every every{};
-        NOUA None none{};
-        
-        NOUA AlwaysTrue always_true{};
-        NOUA AlwaysFalse always_false{};
-        
-        NOUA IdentityAt<0> identity{};
-        NOUA CopyAt<0> copy{};
-        
-        NOUA OnceFactory once{};
-        NOUA CountFactory count{};
-        NOUA IdGiverFactory id_giver{};
-        
-        NOUA MaybeFactory maybe{};
-        NOUA PipeCatch pipecatch{};
-        NOUA PipeThrow pipethrow{};
-        
-        NOUA ConcatFactory concat{};
-        NOUA ConcatenFactory concaten{};
-        NOUA OverloadFactory overload{};
-        NOUA PipelineFactory pipeline{};
+        [[no_unique_address]] MultiReturnFactory multi_return{};
+    
+        [[no_unique_address]] Each each{};
+        [[no_unique_address]] Map map{};
+        [[no_unique_address]] Filter filter{};
+        [[no_unique_address]] Reject reject{};
+    
+        [[no_unique_address]] Some some{};
+        [[no_unique_address]] Every every{};
+        [[no_unique_address]] None none{};
+    
+        [[no_unique_address]] AlwaysTrue always_true{};
+        [[no_unique_address]] AlwaysFalse always_false{};
+    
+        [[no_unique_address]] IdentityAt<0> identity{};
+        [[no_unique_address]] CopyAt<0> copy{};
+    
+        [[no_unique_address]] OnceFactory once{};
+        [[no_unique_address]] CountFactory count{};
+        [[no_unique_address]] IdGiverFactory id_giver{};
+    
+        [[no_unique_address]] FlyFactory fly;
+    
+        [[no_unique_address]] MaybeFactory maybe{};
+        [[no_unique_address]] PipeCatch pipecatch{};
+        [[no_unique_address]] PipeThrow pipethrow{};
+    
+        [[no_unique_address]] ConcatFactory concat{};
+        [[no_unique_address]] ConcatenFactory concaten{};
+        [[no_unique_address]] OverloadFactory overload{};
+        [[no_unique_address]] PipelineFactory pipeline{};
         
         Package() = default;
     };
 }
 
 static_assert(std::is_empty_v<fff::Package>, "the Package class should be empty");
-
-#undef NOUA
 
 #endif //UNDERSCORE_CPP_FFFFFF_H
 

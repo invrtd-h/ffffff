@@ -151,4 +151,22 @@ void maybe_test() {
     
 }
 
+auto foo_factory(int a, int b, int c) {
+    return [a, b, c](int x, int y) {
+        return a + b + c + x + y;
+    };
+}
+
+void fly_test() {
+    static_assert(sizeof(std::function<int(int)>) == 32);
+    
+    fff::Package f;
+    
+    auto g = f.fly(foo_factory(1, 2, 3));
+    auto h{g};
+    std::cout << g(4, 5) << ' ' << h(6, 7) << '\n';
+    
+    static_assert(sizeof(g) == 8);
+}
+
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H
