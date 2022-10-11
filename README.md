@@ -80,7 +80,7 @@ int main() {
 
 ### Monads
 
-#### _.pipethrow(), _.pipecatch
+#### _.go(), _.stop
 
  아무 기능도 없습니다! 하지만 파이프라인을 제공합니다. 함수에 접근할 때 무조건 operator()을 써야 한다는 생각을 버리세요! operator>>는 여러 번의 함수를 한꺼번에 적용해야 할 때, 보다 직관적인 표기법을 만들어줍니다.
 
@@ -89,12 +89,12 @@ template<int N>
 constexpr auto multiply = [](int n) {return n * N;};
 
 int main() {
-    int got = fff::pipethrow(1) 
+    int got = fff::go(1) 
             >> multiply<3> 
             >> multiply<3>
             >> multiply<3> 
             >> multiply<3> 
-            >> fff::pipecatch; // 81
+            >> fff::stop; // 81
 }
 ```
 

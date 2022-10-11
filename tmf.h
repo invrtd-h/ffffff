@@ -3,9 +3,6 @@
 
 namespace fff {
     
-    template<typename T, typename U = T>
-    concept addable = requires (T l, U r) {l + r;};
-    
     template<typename T>
     concept printable = requires (T t) {std::cout << t;};
     
@@ -38,15 +35,6 @@ namespace fff {
     concept maybetype = requires {
         T::is_maybe;
     };
-    
-    template<typename T>
-    concept inheritable = (std::is_class_v<T> and not std::is_final_v<T>);
-    
-    template<typename T>
-    concept empty_type = std::is_empty_v<T>;
-    
-    template<typename T>
-    concept nonempty_type = (not std::is_empty_v<T>);
 }
 
 #endif //UNDERSCORE_CPP_TMF_H

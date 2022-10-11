@@ -45,6 +45,14 @@ namespace fff {
             return static_cast<std::tuple<Ts...>>(*this);
         }
         
+        template<std::invocable<Ts...> F>
+        constexpr auto operator>>(F &&f) const
+        noexcept(noexcept(std::apply(std::forward<F>(f), this->to_tuple())))
+        -> std::invoke_result_t<F, Ts...>
+        {
+            return std::apply(std::forward<F>(f), this->to_tuple());
+        }
+        
         constexpr const static bool multi_return = true;
     };
     
@@ -364,6 +372,8 @@ namespace fff {
         {
             return std::invoke(*p, std::forward<Args>(args)...);
         }
+        
+        
     };
     
     struct FlyFactory {
@@ -376,13 +386,15 @@ namespace fff {
 
 
 /*
- * fff::pipethrow(), fff::pipecatch impl
+ * fff::go(), fff::stop impl
  */
 namespace fff {
-    struct PipeCatch {};
+    struct Stop {};
     
     template<typename T>
     class On {
+        static_assert(not std::is_void_v<T>, "The template type must not be void");
+        
         T data;
         
     public:
@@ -395,12 +407,11 @@ namespace fff {
             return data;
         }
         
-        constexpr T operator>>([[maybe_unused]] PipeCatch u) const noexcept {
-            return data;
+        constexpr T operator>>(Stop) const noexcept {
+            return std::move(data);
         }
     
-        template<class F>
-            requires (std::invocable<F, T> and not std::is_void_v<std::invoke_result_t<F, T>>)
+        template<std::invocable<T> F>
         constexpr auto operator>>(F &&f) const
             noexcept(noexcept(std::invoke(std::forward<F>(f), data)))
         {
@@ -414,14 +425,16 @@ namespace fff {
             return data;
         }
         constexpr T &&operator*() && noexcept {
-            return data;
+            return std::move(data);
         }
         constexpr const T &&operator*() const && noexcept {
-            return data;
+            return std::move(data);
         }
+        
+        using value_type = T;
     };
     
-    struct PipeThrow {
+    struct GoFactory {
         template<typename T>
         constexpr auto operator()(T t) const noexcept
         -> On<T>
@@ -1148,8 +1161,8 @@ namespace fff {
     inline FlyFactory               fly;
     
     inline MaybeFactory             maybe;
-    inline PipeCatch                pipecatch;
-    inline PipeThrow                pipethrow;
+    inline Stop                     stop;
+    inline GoFactory                go;
     
     inline ConcatenFactory          concaten;
     inline ParallelFactory          parallel;
@@ -1183,8 +1196,8 @@ namespace fff {
         [[no_unique_address]] FlyFactory fly;
     
         [[no_unique_address]] MaybeFactory maybe{};
-        [[no_unique_address]] PipeCatch pipecatch{};
-        [[no_unique_address]] PipeThrow pipethrow{};
+        [[no_unique_address]] Stop stop{};
+        [[no_unique_address]] GoFactory go{};
     
         [[no_unique_address]] ConcatenFactory concaten{};
         [[no_unique_address]] ParallelFactory parallel{};
