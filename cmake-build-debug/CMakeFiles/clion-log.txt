@@ -1,4 +1,4 @@
-/Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/Applications/CLion.app/Contents/bin/ninja/mac/ninja -DCMAKE_CXX_COMPILER=/opt/homebrew/Cellar/gcc/12.2.0/bin/gcc-12 -G Ninja -S /Users/hyegeun_song/CLionProjects/ffffff -B /Users/hyegeun_song/CLionProjects/ffffff/cmake-build-debug
+/Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/Applications/CLion.app/Contents/bin/ninja/mac/ninja -DCMAKE_CXX_COMPILER=/opt/homebrew/Cellar/gcc/12.2.0/bin/g++-12 -G Ninja -S /Users/hyegeun_song/CLionProjects/ffffff -B /Users/hyegeun_song/CLionProjects/ffffff/cmake-build-debug
 -- The C compiler identification is AppleClang 13.0.0.13000029
 -- The CXX compiler identification is GNU 12.2.0
 -- Detecting C compiler ABI info
@@ -12,7 +12,7 @@
 -- Checking whether CXX compiler supports OSX deployment target flag - yes
 -- Detecting CXX compiler ABI info
 -- Detecting CXX compiler ABI info - done
--- Check for working CXX compiler: /opt/homebrew/Cellar/gcc/12.2.0/bin/gcc-12 - skipped
+-- Check for working CXX compiler: /opt/homebrew/Cellar/gcc/12.2.0/bin/g++-12 - skipped
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
 -- Configuring done

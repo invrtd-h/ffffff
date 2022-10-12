@@ -1,4 +1,4 @@
-set(CMAKE_CXX_COMPILER "/opt/homebrew/Cellar/gcc/12.2.0/bin/gcc-12")
+set(CMAKE_CXX_COMPILER "/opt/homebrew/Cellar/gcc/12.2.0/bin/g++-12")
 set(CMAKE_CXX_COMPILER_ARG1 "")
 set(CMAKE_CXX_COMPILER_ID "GNU")
 set(CMAKE_CXX_COMPILER_VERSION "12.2.0")
@@ -79,6 +79,6 @@ set(CMAKE_CXX_SYSROOT_FLAG "-isysroot")
 set(CMAKE_CXX_OSX_DEPLOYMENT_TARGET_FLAG "-mmacosx-version-min=")
 
 set(CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "/opt/homebrew/Cellar/gcc/12.2.0/include/c++/12;/opt/homebrew/Cellar/gcc/12.2.0/include/c++/12/aarch64-apple-darwin20;/opt/homebrew/Cellar/gcc/12.2.0/include/c++/12/backward;/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc/aarch64-apple-darwin20/12/include;/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc/aarch64-apple-darwin20/12/include-fixed;/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include;/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/System/Library/Frameworks")
-set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "emutls_w;gcc;gcc")
+set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "stdc++;emutls_w;gcc;gcc")
 set(CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES "/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc/aarch64-apple-darwin20/12;/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc;/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current;/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/lib")
 set(CMAKE_CXX_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/System/Library/Frameworks")

@@ -21,6 +21,8 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 * Noop
 * AlwaysConstant
 
+이름만 봐도 무엇을 하는 함수인지 유추할 수 있습니다!
+
 ### Functions
 
 * _.each()
@@ -32,7 +34,6 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 * _.once()
 * _.count()
-* _.pipeline()
 
 #### _.overload()
 
@@ -55,7 +56,7 @@ int main() {
 }
 ```
 
-#### _.concaten()
+#### _.parallel()
 
  _.overload()와 비슷하지만, 함수의 순서가 보다 중요해집니다. 보다 앞에 있는 함수가 실행 가능하다면 뒤에 있는 함수가 적합하더라도 앞에 있는 함수를 실행시킵니다!
 
@@ -66,7 +67,7 @@ int main() {
     
     int r = 3;
     
-    auto f = fff::concaten(
+    auto f = fff::parallel(
             [r](int n) {std::cout << n * 2 + r << '\n';},
             print_str,
             [r](double n) {std::cout << n * 2 + r << '\n';}
@@ -75,6 +76,23 @@ int main() {
     f(1); // 5
     f(4.9); // 11 (NOT 12.8!!)
     f("String"); // String
+}
+```
+
+#### _.pipeline()
+
+ 합성함수를 파이프라인 형식으로 지원합니다!
+
+```
+template<int N>
+constexpr auto add = [](int n) {return n + N;};
+
+template<int N>
+constexpr auto multiply = [](int n) {return n * N;};
+
+int main() {
+    auto g = fff::pipeline >> add<3> >> multiply<5>;
+    std::cout << g(3) << '\n'; // 30 ( =(3+3)*5 )
 }
 ```
 

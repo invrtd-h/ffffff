@@ -16,7 +16,134 @@
 #include <ranges>
 #include <tuple>
 
-#include "tmf.h"
+namespace fff {
+    
+    template<auto V>
+    using TypeOf = std::decay_t<decltype(V)>;
+    
+    static_assert(std::is_same_v<int, TypeOf<1>>);
+    static_assert(std::is_same_v<std::pair<int, int>, TypeOf<std::make_pair(1, 1)>>);
+    
+    template<unsigned int N, typename T = void, typename ...U>
+    struct AmongImpl {
+        using type = typename AmongImpl<N - 1, U...>::type;
+    };
+    
+    template<typename T, typename ...U>
+    struct AmongImpl<0, T, U...> {
+        using type = T;
+    };
+    
+    template<typename ...T>
+    struct Among {
+        template<unsigned int N>
+        using get = typename AmongImpl<N, T...>::type;
+    };
+    
+    static_assert(std::is_same_v<int, Among<char, double, int>::get<2>>);
+    
+    template<unsigned int N, typename ...T>
+    using NthAmong = typename Among<T...>::template get<N>;
+    
+    template<unsigned int N>
+    struct TypeAt {
+        template<template<class, class...> class C, typename T, typename ...U>
+        constexpr static auto of(C<T, U...>) noexcept -> NthAmong<N, T, U...>;
+    };
+    
+    template<typename T, unsigned int N = 0>
+    using ValueType = decltype(TypeAt<N>::of(std::declval<T>()));
+    
+    static_assert(std::is_same_v<int, ValueType<std::unordered_map<double, int>, 1>>);
+    
+    template<typename T>
+    concept type_nested = requires {
+        TypeAt<0>::of(std::declval<T>());
+    };
+    
+    template<typename T>
+    concept not_type_nested = not type_nested<T>;
+    
+    static_assert(not_type_nested<int>);
+    static_assert(type_nested<std::vector<int>>);
+    static_assert(type_nested<std::pair<int, int>>);
+    
+    static_assert(not_type_nested<std::array<int, 3>>);
+    
+    template<typename T, template<class> class C>
+    concept made_by = std::is_same_v<T, C<ValueType<T>>>;
+    
+    template<typename T, template<class> class C>
+    concept not_made_by = not made_by<T, C>;
+    
+    
+    
+    template<typename T = void, typename ...Ts>
+    struct TempTypeHolder {
+        using type = T;
+        using next = std::conditional_t<std::is_void_v<T>, void, TempTypeHolder<Ts...>>;
+    };
+    
+    template<template<class...> class C>
+    struct ChangeTemplateImpl {
+        template<template<class...> class D, typename ...T>
+        constexpr static auto instead_of(D<T...>) noexcept -> C<T...>;
+    };
+    
+    template<template<class> class C, typename T>
+    using ChangeTemplate = decltype(ChangeTemplateImpl<C>::instead_of(std::declval<T>()));
+    
+    static_assert(std::is_same_v<std::vector<int>, ChangeTemplate<std::vector, std::optional<int>>>);
+    
+    template<template<class> class C>
+    concept unary_pred = requires {
+        C<int>::value;
+    };
+    
+    template<template<class> class Pred, typename T = void, typename ...Ts>
+    requires unary_pred<Pred>
+    struct EveryType {
+        constexpr const static bool value =
+                std::is_void_v<T> or (Pred<T>::value and EveryType<Pred, Ts...>::value);
+    };
+    
+    template<template<class> class Pred, typename T = void, typename ...Ts>
+    constexpr const inline bool every_type_v = EveryType<Pred, T, Ts...>::value;
+    
+    static_assert(not every_type_v<std::is_class, std::string, std::vector<int>, double>);
+    
+    
+}
+
+namespace fff {
+    
+    /**
+     * A concept that determines whether the given type is sequential container in the STL library.
+     * @tparam Cont any container (or any type!)
+     * @return whether the given container is vector, deque or array
+     */
+    
+    template<class Cont>
+    concept is_map = requires {
+        typename Cont::key_type;
+        typename Cont::mapped_type;
+    };
+    
+    template<template<class> class C>
+    concept backpushable = requires (C<int> cont) {
+        cont.push_back(0);
+    };
+    
+    template<template<class> class C>
+    concept insertible = requires (C<int> cont) {
+        cont.insert(0);
+    };
+    
+    template<typename T>
+    concept maybetype = requires {
+        T::is_maybe;
+    };
+}
 
 namespace fff::pol {
     /**
@@ -394,6 +521,7 @@ namespace fff {
     template<typename T>
     class On {
         static_assert(not std::is_void_v<T>, "The template type must not be void");
+        static_assert(not_made_by<T, On>, "Nested type like On<On<T>> is not allowed");
         
         T data;
         
@@ -411,9 +539,16 @@ namespace fff {
             return std::move(data);
         }
     
+        /**
+         * Lift : (T -> U) -> (M<T> -> M<U>)
+         * @tparam F function object type
+         * @param f function object
+         * @return any On<U> object which holds the value f(t)
+         */
         template<std::invocable<T> F>
         constexpr auto operator>>(F &&f) const
             noexcept(noexcept(std::invoke(std::forward<F>(f), data)))
+        -> On<std::invoke_result_t<F, T>>
         {
             return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), data));
         }
@@ -428,6 +563,16 @@ namespace fff {
             return std::move(data);
         }
         constexpr const T &&operator*() const && noexcept {
+            return std::move(data);
+        }
+        constexpr T *operator->() noexcept {
+            return &data;
+        }
+        constexpr const T *operator->() const noexcept {
+            return &data;
+        }
+        
+        constexpr T &&unpack() const noexcept {
             return std::move(data);
         }
         
@@ -1119,19 +1264,6 @@ namespace impl::lab {
         template<template<class> class C, typename T>
         constexpr auto operator()(const C<T> &cont) {
             std::cout << typeid(C<T>).name() << ' ' << typeid(T).name() << '\n';
-        }
-    };
-    
-    template<class Validator, class FuncObj_T, class FuncObj_F>
-    struct Conditional {
-        template<typename ...Args>
-            requires std::is_same_v<std::invoke_result_t<FuncObj_T, Args...>, std::invoke_result_t<FuncObj_F, Args...>>
-        constexpr auto operator()(Args &&...args) const noexcept {
-            if (Validator()(std::forward<Args>(args)...)) {
-                return FuncObj_T()(std::forward<Args>(args)...);
-            } else {
-                return FuncObj_F()(std::forward<Args>(args)...);
-            }
         }
     };
 }
