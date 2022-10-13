@@ -18,6 +18,9 @@
 
 namespace fff {
     
+    /**
+     * @example Typeof\<1> = int
+     */
     template<auto V>
     using TypeOf = std::decay_t<decltype(V)>;
     
@@ -57,18 +60,18 @@ namespace fff {
     static_assert(std::is_same_v<int, ValueType<std::unordered_map<double, int>, 1>>);
     
     template<typename T>
-    concept type_nested = requires {
+    concept typenested = requires {
         TypeAt<0>::of(std::declval<T>());
     };
     
     template<typename T>
-    concept not_type_nested = not type_nested<T>;
+    concept non_typenested = not typenested<T>;
     
-    static_assert(not_type_nested<int>);
-    static_assert(type_nested<std::vector<int>>);
-    static_assert(type_nested<std::pair<int, int>>);
+    static_assert(non_typenested<int>);
+    static_assert(typenested<std::vector<int>>);
+    static_assert(typenested<std::pair<int, int>>);
     
-    static_assert(not_type_nested<std::array<int, 3>>);
+    static_assert(non_typenested<std::array<int, 3>>);
     
     template<typename T, template<class> class C>
     concept made_by = std::is_same_v<T, C<ValueType<T>>>;
@@ -77,11 +80,52 @@ namespace fff {
     concept not_made_by = not made_by<T, C>;
     
     
+    /**
+     * A concept determines whether the given C is a unary predicate.
+     * @tparam C Any unary type constructor
+     * @example unary_pred<std::is_class> is true, since std::is_class<T>::value is evaluated as bool
+     * @example unary_pred<std::vector> is false
+     */
+    template<template<class> class C>
+    concept unary_pred = requires {
+        { C<int>::value } -> std::convertible_to<bool>;
+    };
     
-    template<typename T = void, typename ...Ts>
+    
+    
+    /**
+     * A temporal type holder that holds any type.
+     * @tparam T, Ts any typename
+     * @example TempTypeHolder\<int, double, char> is valid. (There is no requirement)
+     */
+    template<typename T, typename ...Ts>
     struct TempTypeHolder {
         using type = T;
-        using next = std::conditional_t<std::is_void_v<T>, void, TempTypeHolder<Ts...>>;
+        using next = TempTypeHolder<Ts...>;
+        // recursive step
+        
+        /**
+         * Determines whether every T and Ts... satisfies the predicate.
+         * @tparam C A unary predicate that C\<T>::value is evaluated as a constexpr bool
+         */
+        template<template<class> class C>
+            requires unary_pred<C>
+        constexpr static const bool value = C<type>::value and
+                (std::is_void_v<next> or next::template value<C>);
+    };
+    
+    template<typename T>
+    struct TempTypeHolder<T> {
+        using type = T;
+        using next = void;
+        
+        /**
+         * Determines whether every T and Ts... satisfies the predicate.
+         * @tparam C A unary predicate that C<T>::value is evaluated as a constexpr bool
+         */
+        template<template<class> class C>
+        requires unary_pred<C>
+        constexpr static const bool value = C<type>::value;
     };
     
     template<template<class...> class C>
@@ -95,10 +139,7 @@ namespace fff {
     
     static_assert(std::is_same_v<std::vector<int>, ChangeTemplate<std::vector, std::optional<int>>>);
     
-    template<template<class> class C>
-    concept unary_pred = requires {
-        C<int>::value;
-    };
+    
     
     template<template<class> class Pred, typename T = void, typename ...Ts>
     requires unary_pred<Pred>
@@ -113,6 +154,46 @@ namespace fff {
     static_assert(not every_type_v<std::is_class, std::string, std::vector<int>, double>);
     
     
+    
+    /**
+     * A temporal class for implementing the concept unrelated_with<T>.
+     * Note that the definition is unrelated_with<T> = ThisUnaryTypeConstructor<C>::template IsUnrelatedWith<T>::value,
+     * which means that "This unary type constructor 'C' is not related with 'T'".
+     * @see below, the definition of concept unrelated_with
+     */
+    template<template<class> class C>
+    struct ThisUnaryTypeConstructor {
+        
+        template<typename T>
+        struct IsUnrelatedWith;
+        
+        // If T is not "nested" type, then T is unrelated with C.
+        
+        template<non_typenested T>
+        struct IsUnrelatedWith<T> {
+            constexpr static const bool value = true;
+        };
+    
+        // If T is "nested" type, say, T = D<T1, T2, ..., Tp>,
+        // then T is unrelated with C IFF (T1 is unrelated with C and T2 is unrelated with C and ...
+        // Tp is unrelated with C).
+        
+        template<typenested T>
+        struct IsUnrelatedWith<T> {
+            using TypeMove = ChangeTemplate<TempTypeHolder, T>;
+            constexpr static const bool value =
+                    (not made_by<T, C> and TypeMove::template value<IsUnrelatedWith>);
+        };
+    };
+    
+    template<typename T, template<class> class C>
+    concept unrelated_with = ThisUnaryTypeConstructor<C>::template IsUnrelatedWith<T>::value;
+    
+    template<typename T, template<class> class C>
+    concept related_with = not unrelated_with<T, C>;
+    
+    static_assert(not unrelated_with<std::pair<std::vector<int>, std::pair<int, int>>, std::vector>);
+    static_assert(unrelated_with<std::tuple<int, std::tuple<int, double, int>>, std::vector>);
 }
 
 namespace fff {
