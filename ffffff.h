@@ -17,15 +17,25 @@
 #include <tuple>
 
 namespace fff {
+
+    struct ConstexprDetermination {
+        /**
+         * determines if the parameter is constant-evaluated
+         * @return true, always
+         * @error if the parameter is NOT constant-evaluated
+         */
+        consteval static bool is_consteval_var(auto &&) noexcept {
+            return true;
+        }
+    };
     
     /**
-     * @example Typeof\<1> = int
+     * Determines the type of a value at compile time.
+     * @example Typeof\<1> == int
+     * @example Typeof\<std::make_pair(1, 1)> == std::pair\<int, int>
      */
     template<auto V>
     using TypeOf = std::decay_t<decltype(V)>;
-    
-    static_assert(std::is_same_v<int, TypeOf<1>>);
-    static_assert(std::is_same_v<std::pair<int, int>, TypeOf<std::make_pair(1, 1)>>);
     
     template<unsigned int N, typename T = void, typename ...U>
     struct AmongImpl {
@@ -73,23 +83,20 @@ namespace fff {
     
     static_assert(non_typenested<std::array<int, 3>>);
     
-    template<typename T, template<class> class C>
-    concept made_by = std::is_same_v<T, C<ValueType<T>>>;
-    
-    template<typename T, template<class> class C>
-    concept not_made_by = not made_by<T, C>;
-    
     
     /**
      * A concept determines whether the given C is a unary predicate.
      * @tparam C Any unary type constructor
-     * @example unary_pred<std::is_class> is true, since std::is_class<T>::value is evaluated as bool
-     * @example unary_pred<std::vector> is false
+     * @example unary_pred\<std::is_class> is true, since std::is_class\<T>::value is evaluated as bool
+     * @example unary_pred\<std::vector> is false
      */
     template<template<class> class C>
     concept unary_pred = requires {
         { C<int>::value } -> std::convertible_to<bool>;
+        ConstexprDetermination::is_consteval_var(C<int>::value);
     };
+
+    static_assert(unary_pred<std::is_class> and not unary_pred<std::vector>);
     
     
     
@@ -97,12 +104,14 @@ namespace fff {
      * A temporal type holder that holds any type.
      * @tparam T, Ts any typename
      * @example TempTypeHolder\<int, double, char> is valid. (There is no requirement)
+     * @using type, the type alias for T
+     * @using next, the type alias for TempTypeHolder\<Ts...> i.e. a class that temporally holds all types except T
+     * @example TempTypeHolder\<int, double, char>::next::next::type == char
      */
     template<typename T, typename ...Ts>
     struct TempTypeHolder {
         using type = T;
         using next = TempTypeHolder<Ts...>;
-        // recursive step
         
         /**
          * Determines whether every T and Ts... satisfies the predicate.
@@ -134,12 +143,10 @@ namespace fff {
         constexpr static auto instead_of(D<T...>) noexcept -> C<T...>;
     };
     
-    template<template<class> class C, typename T>
+    template<template<class...> class C, typename T>
     using ChangeTemplate = decltype(ChangeTemplateImpl<C>::instead_of(std::declval<T>()));
     
     static_assert(std::is_same_v<std::vector<int>, ChangeTemplate<std::vector, std::optional<int>>>);
-    
-    
     
     template<template<class> class Pred, typename T = void, typename ...Ts>
     requires unary_pred<Pred>
@@ -152,6 +159,15 @@ namespace fff {
     constexpr const inline bool every_type_v = EveryType<Pred, T, Ts...>::value;
     
     static_assert(not every_type_v<std::is_class, std::string, std::vector<int>, double>);
+    
+    
+    template<typename T, template<class> class C>
+    concept made_by = std::is_same_v<T, ChangeTemplate<C, T>>;
+    
+    template<typename T, template<class> class C>
+    concept not_made_by = not made_by<T, C>;
+    
+    static_assert(not made_by<std::vector<int>, std::optional>);
     
     
     
@@ -185,29 +201,50 @@ namespace fff {
                     (not made_by<T, C> and TypeMove::template value<IsUnrelatedWith>);
         };
     };
-    
+
+    /**
+     * determines whether every sub-types of T is "unrelated_with" C. This process is recursive.
+     * @tparam T any-type
+     * @tparam C any unary type constructor
+     */
     template<typename T, template<class> class C>
     concept unrelated_with = ThisUnaryTypeConstructor<C>::template IsUnrelatedWith<T>::value;
     
     template<typename T, template<class> class C>
     concept related_with = not unrelated_with<T, C>;
     
-    static_assert(not unrelated_with<std::pair<std::vector<int>, std::pair<int, int>>, std::vector>);
+    static_assert(related_with<std::pair<std::vector<int>, std::pair<int, int>>, std::vector>);
     static_assert(unrelated_with<std::tuple<int, std::tuple<int, double, int>>, std::vector>);
+
+
+    struct DeclApply {
+        template<typename F, typename ...Ts>
+        constexpr static auto declapply(F &&f, const std::tuple<Ts...> &tts) noexcept
+            -> std::invoke_result_t<F, Ts...>;
+    };
+
+    template<typename F, typename ...Ts>
+    using apply_result_t = decltype(DeclApply::declapply(std::declval<F>(), std::declval<std::tuple<Ts...>>()));
+
+
+
+    /**
+     * determines whether the decayed versions of T and U are same type
+     * @tparam T, U any
+     */
+    template<typename T, typename U>
+    concept same = std::is_same_v<std::decay_t<T>, std::decay_t<U>>
+                and std::is_same_v<std::decay_t<U>, std::decay_t<T>>;
+
+    template<typename T, typename U>
+    concept different = not same<T, U>;
 }
 
 namespace fff {
-    
-    /**
-     * A concept that determines whether the given type is sequential container in the STL library.
-     * @tparam Cont any container (or any type!)
-     * @return whether the given container is vector, deque or array
-     */
-    
-    template<class Cont>
-    concept is_map = requires {
-        typename Cont::key_type;
-        typename Cont::mapped_type;
+
+    template<typename T>
+    concept dereferencible = requires (T t) {
+        *t;
     };
     
     template<template<class> class C>
@@ -224,6 +261,8 @@ namespace fff {
     concept maybetype = requires {
         T::is_maybe;
     };
+
+
 }
 
 namespace fff::pol {
@@ -260,8 +299,6 @@ namespace fff {
         {
             return std::apply(std::forward<F>(f), this->to_tuple());
         }
-        
-        constexpr const static bool multi_return = true;
     };
     
     struct MultiReturnFactory {
@@ -269,14 +306,25 @@ namespace fff {
         constexpr auto operator()(Ts &&...ts) const noexcept
         -> MultiReturn<std::decay_t<Ts>...>
         {
-            return {std::forward<Ts>(ts)...};
+            return MultiReturn<std::decay_t<Ts>...>{std::forward<Ts>(ts)...};
         }
     };
     
     template<typename T>
-    concept m_r = requires {
-        T::multi_return;
+    concept mr = made_by<T, MultiReturn>;
+    
+    template<typename T>
+    concept not_mr = not mr<T>;
+
+    struct DeclMr {
+        template<typename F, typename ...Ts>
+        constexpr static auto declmr(F &&f, const MultiReturn<Ts...> &) noexcept
+            -> std::invoke_result_t<F, Ts...>;
     };
+
+    template<typename F, mr T>
+    using apply_as_mr_result_t =
+        decltype(DeclMr::declmr(std::declval<F>(), std::declval<T>()));
     
     inline MultiReturnFactory multi_return;
 }
@@ -302,7 +350,7 @@ namespace fff {
          * @return std::forward<T>(t)
          */
         template<class T, typename... Args>
-        constexpr auto &&operator()(T &&t, Args &&...args) const noexcept {
+        constexpr auto &&operator()(T &&, Args &&...args) const noexcept {
             return std::invoke(IdentityAt<SZ - 1>(), std::forward<Args>(args)...);
         }
     };
@@ -313,7 +361,7 @@ namespace fff {
          * Template specification of IdentityAt<> (read upward)
          */
         template<class T, typename ...Args>
-        constexpr T &&operator()(T &&t, [[maybe_unused]] Args &&...args) const noexcept {
+        constexpr T &&operator()(T &&t, Args &&...) const noexcept {
             return std::forward<T>(t);
         }
     };
@@ -340,7 +388,7 @@ namespace fff {
          * @return std::forward<T>(t)
          */
         template<class T, typename ...Args>
-        constexpr auto operator()(T &&t, Args &&...args) const noexcept {
+        constexpr auto operator()(T &&, Args &&...args) const noexcept {
             return std::invoke(CopyAt<SZ - 1>(), std::forward<Args>(args)...);
         }
     };
@@ -351,7 +399,7 @@ namespace fff {
          * Template specification of IdentityAt<> (read upward)
          */
         template<class T, typename ...Args>
-        constexpr T operator()(T &&t, [[maybe_unused]] Args &&...args) const noexcept {
+        constexpr T operator()(T &&t, Args &&...) const noexcept {
             return t;
         }
     };
@@ -376,7 +424,7 @@ namespace fff {
          * @return nothing
          */
         template<class ...Args>
-        constexpr void operator()([[maybe_unused]] Args &&...args) const noexcept {
+        constexpr void operator()(Args &&...) const noexcept {
             // do nothing
         }
     };
@@ -405,7 +453,7 @@ namespace fff {
              * @return t, pre-defined value by definition of the callable (orthogonal to args)
              */
             template<class ...Args>
-            constexpr T operator()([[maybe_unused]] Args &&...args) const noexcept {
+            constexpr T operator()(Args &&...) const noexcept {
                 return t;
             }
         };
@@ -427,10 +475,21 @@ namespace fff {
      */
     template<typename T>
     struct AsSingle {
-        T &get() {
+        T &get() noexcept(noexcept(new T())) {
             static T *data = new T();
             return *data;
         }
+    };
+}
+
+/**
+ * fff::(Null object class) impl
+ * @todo null object implement
+ */
+
+namespace fff {
+    struct NullAssignment_i {
+
     };
 }
 
@@ -518,6 +577,7 @@ namespace fff {
             requires std::invocable<F, Args...>
         constexpr auto operator()(Args ...args) const
             noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
         {
             ++cnt;
             return std::invoke(f, std::forward<Args>(args)...);
@@ -574,14 +634,14 @@ namespace fff {
         }
     
         template<class ...Args>
+        requires std::invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const
         noexcept(noexcept(std::invoke(*p, std::forward<Args>(args)...)))
         -> std::invoke_result_t<F, Args...>
         {
             return std::invoke(*p, std::forward<Args>(args)...);
         }
-        
-        
+
     };
     
     struct FlyFactory {
@@ -590,6 +650,40 @@ namespace fff {
             return Fly<F>(std::forward<F>(f));
         }
     };
+}
+
+/**
+ * A simple practice for CRTP pattern (If you are not interested, then just ignore...)
+ */
+namespace fff {
+
+    template<typename T>
+    class ObjectCounter {
+        inline static int created_ = 0, alive_ = 0;
+
+    public:
+        constexpr ObjectCounter() noexcept {
+            ++created_; ++alive_;
+        }
+        constexpr ~ObjectCounter() noexcept {
+            --alive_;
+        }
+
+        [[nodiscard]] static int created() noexcept {
+            return created_;
+        }
+        [[nodiscard]] static int alive() noexcept {
+            return alive_;
+        }
+
+        constexpr explicit operator bool() const noexcept {
+            return true;
+        }
+    };
+
+    struct MyClass : ObjectCounter<MyClass> {};
+
+    inline MyClass m, m2, m3;
 }
 
 
@@ -616,7 +710,7 @@ namespace fff {
             return data;
         }
         
-        constexpr T operator>>(Stop) const noexcept {
+        constexpr T &&operator>>(Stop) const noexcept {
             return std::move(data);
         }
     
@@ -750,6 +844,23 @@ namespace fff {
 }
 
 /**
+ * fff::NoThrow impl
+ * @todo nothrow implement
+ */
+namespace fff {
+
+    template<typename F>
+    class NoThrow {
+        [[no_unique_address]] F f;
+
+
+
+    public:
+
+    };
+}
+
+/**
  * fff::Log impl
  */
  
@@ -768,10 +879,10 @@ namespace fff {
         noexcept(noexcept(1))
         -> Log<std::invoke_result_t<F, T>>
         {
-            // @todo implement
+            // @todo log implement
         }
         
-        constexpr std::string emit() {
+        constexpr std::string emit() noexcept {
             std::string temp;
             log >> temp;
             
@@ -1008,30 +1119,34 @@ namespace fff {
         [[no_unique_address]] F f;
 
     public:
-        constexpr explicit Pipeline(F &&f) noexcept : f(std::move(f)) {}
         constexpr explicit Pipeline(const F &f) noexcept : f(f) {}
+        constexpr explicit Pipeline(F &&f) noexcept : f(std::move(f)) {}
 
         template<class ...Args>
+        requires std::invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const &
         noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
         {
             return std::invoke(f, std::forward<Args>(args)...);
         }
     
         template<class ...Args>
+        requires std::invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const &&
         noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+        -> std::invoke_result_t<F, Args...>
         {
             return std::invoke(std::move(f), std::forward<Args>(args)...);
         }
     
         template<class G>
-        constexpr auto operator>>(G &&g) const & noexcept {
+        constexpr auto operator>>(G &&g) const & noexcept -> Pipeline<F, std::decay_t<G>> {
             return Pipeline<F, std::decay_t<G>>{f, std::forward<G>(g)};
         }
     
         template<class G>
-        constexpr auto operator>>(G &&g) const && noexcept {
+        constexpr auto operator>>(G &&g) const && noexcept -> Pipeline<F, std::decay_t<G>> {
             return Pipeline<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
         }
     };
@@ -1049,33 +1164,37 @@ namespace fff {
             : f1(std::forward<U1>(f1)), f2(std::forward<U2>(f2)) {}
 
         template<class ...Args>
-            requires (not m_r<std::invoke_result_t<F1, Args...>>)
+            requires not_mr<std::invoke_result_t<F1, Args...>>
         constexpr auto operator()(Args &&...args) const &
             noexcept(noexcept(std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...))))
+        -> std::invoke_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
         {
             return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
         }
         
         template<class ...Args>
-            requires (not m_r<std::invoke_result_t<F1, Args...>>)
+            requires not_mr<std::invoke_result_t<F1, Args...>>
         constexpr auto operator()(Args &&...args) const &&
             noexcept(noexcept(std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...))))
+        -> std::invoke_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
         {
             return std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...));
         }
     
         template<class ...Args>
-            requires m_r<std::invoke_result_t<F1, Args...>>
+            requires mr<std::invoke_result_t<F1, Args...>>
         constexpr auto operator()(Args &&...args) const &
         noexcept(noexcept(std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple())))
+        -> apply_as_mr_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
         {
             return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
         }
     
         template<class ...Args>
-            requires m_r<std::invoke_result_t<F1, Args...>>
+            requires mr<std::invoke_result_t<F1, Args...>>
         constexpr auto operator()(Args &&...args) const &&
         noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
+        -> apply_as_mr_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
         {
             return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
         }
@@ -1125,6 +1244,34 @@ namespace fff {
  */
 namespace fff {
 
+}
+
+/**
+ * fff::(Some Unary Operators)
+ */
+
+namespace fff {
+    struct GetAddress {
+        template<typename T>
+        constexpr auto operator()(const T &t) const noexcept -> decltype(&t) {
+            return &t;
+        }
+    };
+
+    struct Dereference {
+        template<dereferencible T>
+        constexpr auto operator()(T &&t) const noexcept -> decltype(*t) {
+            return *t;
+        }
+    };
+
+    template<typename T>
+    struct ConvertTo {
+        template<std::convertible_to<T> U>
+        constexpr auto operator()(U &&u) const noexcept -> T {
+            return static_cast<T>(std::forward<U>(u));
+        }
+    };
 }
 
 namespace fff {
