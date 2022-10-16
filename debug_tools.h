@@ -187,6 +187,16 @@ void parallel_test() {
     g("My New String");
     
     std::cout << "The sizeof g is " << sizeof(g) << '\n';
+
+    auto g2 = f.parallel.make_chain([r](int n) {std::cout << n * 2 + r << '\n';})
+                  .make_chain([r](double n) {std::cout << n * 2 + r << '\n';})
+                  .make_chain(print_str);
+
+    g2(1);
+    g2(4.9);
+    g2("My New String");
+
+    std::cout << "The sizeof g2 is " << sizeof(g2) << '\n';
 }
 
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H

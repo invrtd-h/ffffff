@@ -238,6 +238,11 @@ namespace fff {
 
     template<typename T, typename U>
     concept different = not same<T, U>;
+
+
+
+    template<typename T, template<class> class C>
+    concept derived_as_crtp = std::derived_from<T, C<T>>;
 }
 
 namespace fff {
@@ -488,9 +493,37 @@ namespace fff {
  */
 
 namespace fff {
-    struct NullAssignment_i {
+
+    template<typename T = void>
+    struct Nulltype {};
+
+    struct NullAssignment_i : Nulltype<NullAssignment_i> {
+        template<different<NullAssignment_i> T>
+        constexpr auto operator=(T &&t) const noexcept
+        -> NullAssignment_i const&
+        {
+            return *this;
+        }
+
+        template<different<NullAssignment_i> T>
+        constexpr auto operator=(T &&t) noexcept
+        -> NullAssignment_i&
+        {
+            return *this;
+        }
+    };
+
+    template<class F>
+    class NullLifted {
+        [[no_unique_address]] F f;
+
+    public:
+        constexpr explicit NullLifted(const F &f) noexcept : f(f) {}
+        constexpr explicit NullLifted(F &&f) noexcept : f(std::move(f)) {}
+
 
     };
+
 }
 
 /*
@@ -1012,11 +1045,11 @@ namespace fff {
         friend class ParallelFactory;
         
         [[no_unique_address]] F f;
-        
+
+    public:
         constexpr explicit Parallel(const F &f) noexcept : f(f) {}
         constexpr explicit Parallel(F &&f) noexcept : f(std::move(f)) {}
-        
-    public:
+
         template<typename ...Args>
             requires std::invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const &
@@ -1034,6 +1067,16 @@ namespace fff {
         {
             return std::invoke(std::move(f), std::forward<Args>(args)...);
         }
+
+        template<typename G>
+        constexpr auto make_chain(G &&g) const & noexcept -> Parallel<F, std::decay_t<G>> {
+            return Parallel<F, std::decay_t<G>>{f, std::forward<G>(g)};
+        }
+
+        template<typename G>
+        constexpr auto make_chain(G &&g) const && noexcept -> Parallel<F, std::decay_t<G>> {
+            return Parallel<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
+        }
     };
     
     template<class F, class ...Fp>
@@ -1042,12 +1085,12 @@ namespace fff {
         
         [[no_unique_address]] F f;
         [[no_unique_address]] Parallel<Fp...> pfp;
-    
+
+    public:
         template<class U1, class U2>
         constexpr Parallel(U1 &&f, U2 &&pfp) noexcept
             : f(std::forward<U1>(f)), pfp(std::forward<U2>(pfp)) {}
-        
-    public:
+
         template<typename ...Args>
         requires std::invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const &
@@ -1085,6 +1128,20 @@ namespace fff {
         {
             return std::invoke(std::move(pfp), std::forward<Args>(args)...);
         }
+
+        template<typename G>
+        constexpr auto make_chain(G &&g) const & noexcept
+            -> Parallel<F, Fp..., std::decay_t<G>>
+        {
+            return Parallel<F, Fp..., std::decay_t<G>>{f, pfp.make_chain(std::forward<G>(g))};
+        }
+
+        template<typename G>
+        constexpr auto make_chain(G &&g) const && noexcept
+            -> Parallel<F, Fp..., std::decay_t<G>>
+        {
+            return Parallel<F, Fp..., std::decay_t<G>>{std::move(f), pfp.make_chain(std::forward<G>(g))};
+        }
     };
     
     struct ParallelFactory {
@@ -1100,6 +1157,11 @@ namespace fff {
         {
             return Parallel<std::decay_t<F>, std::decay_t<Fp>...>
                     (std::forward<F>(f), operator()(std::forward<Fp>(fp)...));
+        }
+
+        template<typename F>
+        constexpr auto make_chain(F &&f) const noexcept -> Parallel<std::decay_t<F>> {
+            return Parallel<F>{std::forward<F>(f)};
         }
     };
 }
@@ -1258,12 +1320,16 @@ namespace fff {
         }
     };
 
+    inline constexpr GetAddress get_address;
+
     struct Dereference {
         template<dereferencible T>
         constexpr auto operator()(T &&t) const noexcept -> decltype(*t) {
             return *t;
         }
     };
+
+    inline constexpr Dereference dereference;
 
     template<typename T>
     struct ConvertTo {
@@ -1272,6 +1338,9 @@ namespace fff {
             return static_cast<T>(std::forward<U>(u));
         }
     };
+
+    template<typename T>
+    inline constexpr ConvertTo<T> convert_to;
 }
 
 namespace fff {
