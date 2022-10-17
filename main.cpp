@@ -59,4 +59,7 @@ int main() {
     std::cout << sizeof(h2) << ' ' << sizeof(g3) << '\n';
 
     std::cout << fff::MyClass::created() << '\n';
+
+    maybe_test();
+    cq_test();
 }

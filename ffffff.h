@@ -243,6 +243,14 @@ namespace fff {
 
     template<typename T, template<class> class C>
     concept derived_as_crtp = std::derived_from<T, C<T>>;
+
+    template<typename F, typename ...Args>
+    concept nonvoid_invocable = std::invocable<F, Args...>
+        and not std::is_void_v<std::invoke_result_t<F, Args...>>;
+
+    template<typename F, typename ...Args>
+    concept void_invocable = std::invocable<F, Args...>
+        and std::is_void_v<std::invoke_result_t<F, Args...>>;
 }
 
 namespace fff {
@@ -466,6 +474,9 @@ namespace fff {
     
     using AlwaysTrue = AlwaysConstant<bool>::Returns<true>;
     using AlwaysFalse = AlwaysConstant<bool>::Returns<false>;
+
+    constexpr inline AlwaysTrue always_true;
+    constexpr inline AlwaysFalse always_false;
 }
 
 /*
@@ -489,40 +500,76 @@ namespace fff {
 
 /**
  * fff::(Null object class) impl
- * @todo null object implement
  */
 
 namespace fff {
 
+    /**
+     * A null type that works as a "Null Object".
+     * Use CRTP pattern to inherit this type and make any "Null Object" you want.
+     */
     template<typename T = void>
-    struct Nulltype {};
-
-    struct NullAssignment_i : Nulltype<NullAssignment_i> {
-        template<different<NullAssignment_i> T>
-        constexpr auto operator=(T &&t) const noexcept
-        -> NullAssignment_i const&
-        {
-            return *this;
-        }
-
-        template<different<NullAssignment_i> T>
-        constexpr auto operator=(T &&t) noexcept
-        -> NullAssignment_i&
-        {
-            return *this;
-        }
+    struct Nulltype {
+        const static bool nullity = true;
     };
 
     template<class F>
     class NullLifted {
+        friend class NullLiftedFactory;
+
         [[no_unique_address]] F f;
 
-    public:
         constexpr explicit NullLifted(const F &f) noexcept : f(f) {}
         constexpr explicit NullLifted(F &&f) noexcept : f(std::move(f)) {}
 
+    public:
+        template<typename ...Args>
+            requires nonvoid_invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &
+            noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+                -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(f, std::forward<Args>(args)...);
+        }
 
+        template<typename ...Args>
+            requires nonvoid_invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+                -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
+
+        template<typename ...Args>
+            requires void_invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &
+            noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
+                -> Nulltype<>
+        {
+            std::invoke(f, std::forward<Args>(args)...);
+            return {};
+        }
+
+        template<typename ...Args>
+            requires void_invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) const &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+                -> Nulltype<>
+        {
+            std::invoke(std::move(f), std::forward<Args>(args)...);
+            return {};
+        }
     };
+
+    struct NullLiftFactory {
+        template<typename F>
+        constexpr auto operator()(F &&f) const noexcept -> NullLifted<F> {
+            return NullLifted<F>{std::forward<F>(f)};
+        }
+    };
+
+    constexpr inline NullLiftFactory null_lift;
 
 }
 
@@ -735,9 +782,9 @@ namespace fff {
         
     public:
         constexpr explicit On(const T &t) noexcept(noexcept(T(t)))
-                : data(t) {}
-        constexpr explicit On(T &&t) noexcept(noexcept(T(t)))
-                : data(t) {}
+            : data(t) {}
+        constexpr explicit On(T &&t) noexcept(noexcept(T(std::move(t))))
+            : data(std::move(t)) {}
         
         constexpr explicit operator T() const noexcept {
             return data;
@@ -754,11 +801,35 @@ namespace fff {
          * @return any On<U> object which holds the value f(t)
          */
         template<std::invocable<T> F>
-        constexpr auto operator>>(F &&f) const
+        constexpr auto operator>>(F &&f) &
             noexcept(noexcept(std::invoke(std::forward<F>(f), data)))
         -> On<std::invoke_result_t<F, T>>
         {
             return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), data));
+        }
+
+        template<std::invocable<T> F>
+        constexpr auto operator>>(F &&f) const &
+            noexcept(noexcept(std::invoke(std::forward<F>(f), data)))
+                -> On<std::invoke_result_t<F, T>>
+        {
+            return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), data));
+        }
+
+        template<std::invocable<T> F>
+        constexpr auto operator>>(F &&f) &&
+            noexcept(noexcept(std::invoke(std::forward<F>(f), std::move(data))))
+                -> On<std::invoke_result_t<F, T>>
+        {
+            return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), std::move(data)));
+        }
+
+        template<std::invocable<T> F>
+        constexpr auto operator>>(F &&f) const &&
+            noexcept(noexcept(std::invoke(std::forward<F>(f), std::move(data))))
+                -> On<std::invoke_result_t<F, T>>
+        {
+            return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), std::move(data)));
         }
         
         constexpr T &operator*() & noexcept {
@@ -816,8 +887,8 @@ namespace fff {
          */
         template<class F>
             requires (std::invocable<F, T>
-                    and not std::is_void_v<std::invoke_result_t<F, T>>
-                    and not maybetype<std::invoke_result_t<F, T>>)
+                     and not std::is_void_v<std::invoke_result_t<F, T>>
+                     and not maybetype<std::invoke_result_t<F, T>>)
         constexpr Maybe<std::invoke_result_t<F, T>> operator>>(F &&f) const
             noexcept(noexcept(std::invoke(std::forward<F>(f), this->value())))
         {
@@ -909,7 +980,7 @@ namespace fff {
         
         template<std::invocable<T> F>
         constexpr auto operator>>(F &&f) const
-        noexcept(noexcept(1))
+        noexcept
         -> Log<std::invoke_result_t<F, T>>
         {
             // @todo log implement
@@ -975,59 +1046,6 @@ namespace fff {
         -> Overload<std::remove_reference_t<Fp>...>
         {
             return {std::forward<Fp>(fp)...};
-        }
-    };
-}
-
-namespace fff {
-    
-    /**
-     * @todo need to check whether this is thread-safe
-     */
-    template<class F, class ...Fp>
-    struct Concaten : F, Concaten<Fp...> {
-    
-        template<class ...Args>
-            requires std::invocable<F, Args...>
-        constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
-        {
-            return F::operator()(std::forward<Args>(args)...);
-        }
-        
-        template<class ...Args>
-            requires (not std::invocable<F, Args...>)
-        constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(Concaten<Fp...>::operator()(std::forward<Args>(args)...)))
-        {
-            return Concaten<Fp...>::operator()(std::forward<Args>(args)...);
-        }
-    };
-    
-    template<class F>
-    struct Concaten<F> : F {
-        template<class ...Args>
-            requires std::invocable<F, Args...>
-        constexpr auto operator()(Args &&...args) const
-            noexcept(noexcept(F::operator()(std::forward<Args>(args)...)))
-        {
-            return F::operator()(std::forward<Args>(args)...);
-        }
-    };
-    
-    struct ConcatenFactory {
-        template<class F>
-        constexpr auto operator()(F &&f) const noexcept
-        -> Concaten<std::remove_reference_t<F>>
-        {
-            return {std::forward<F>(f)};
-        }
-        
-        template<class F, class ...Fp>
-        constexpr auto operator()(F &&f, Fp &&...fp) const noexcept
-        -> Concaten<std::remove_reference_t<F>, std::remove_reference_t<Fp>...>
-        {
-            return {std::forward<F>(f), operator()(std::forward<Fp>(fp)...)};
         }
     };
 }
@@ -1255,8 +1273,8 @@ namespace fff {
         template<class ...Args>
             requires mr<std::invoke_result_t<F1, Args...>>
         constexpr auto operator()(Args &&...args) const &&
-        noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
-        -> apply_as_mr_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
+            noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
+                -> apply_as_mr_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
         {
             return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
         }
@@ -1575,9 +1593,6 @@ namespace fff {
     inline Every                    every;
     inline None                     none;
     
-    inline AlwaysTrue               always_true;
-    inline AlwaysFalse              always_false;
-    
     template<std::size_t SZ>
     inline IdentityAt<SZ>           identity_at;
     template<std::size_t SZ>
@@ -1592,8 +1607,7 @@ namespace fff {
     inline MaybeFactory             maybe;
     inline Stop                     stop;
     inline GoFactory                go;
-    
-    inline ConcatenFactory          concaten;
+
     inline ParallelFactory          parallel;
     inline OverloadFactory          overload;
     inline PipelineFactory          pipeline;
@@ -1627,8 +1641,7 @@ namespace fff {
         [[no_unique_address]] MaybeFactory maybe{};
         [[no_unique_address]] Stop stop{};
         [[no_unique_address]] GoFactory go{};
-    
-        [[no_unique_address]] ConcatenFactory concaten{};
+
         [[no_unique_address]] ParallelFactory parallel{};
         [[no_unique_address]] OverloadFactory overload{};
         [[no_unique_address]] PipelineFactory pipeline{};

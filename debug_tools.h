@@ -32,6 +32,10 @@ public:
         std::cout << "우측값 레퍼런스 캐치\n";
         return *this;
     }
+
+    [[nodiscard]] ForwardingTester do_any() const {
+        return {};
+    }
 };
 
 template<typename T>
@@ -97,18 +101,6 @@ void concat_test() {
     overloaded("String");
     
     int r = 3;
-    
-    auto f = fff::concaten(
-            [r](int n) {std::cout << n * 2 + r << '\n';},
-            [r](double n) {std::cout << n * 2 + r << '\n';},
-            print_str
-    );
-    
-    f(1);
-    f(4.9);
-    f("My New String");
-    
-    std::cout << "The sizeof f is " << sizeof(f) << '\n';
     
 }
 
@@ -197,6 +189,14 @@ void parallel_test() {
     g2("My New String");
 
     std::cout << "The sizeof g2 is " << sizeof(g2) << '\n';
+}
+
+void cq_test() {
+    fff::Package f;
+
+    auto ret = f.go(ForwardingTester())
+        >> [](const ForwardingTester &ft) -> ForwardingTester {return ft.do_any();}
+        >> [](ForwardingTester &&ft) {return std::move(ft);};
 }
 
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H
