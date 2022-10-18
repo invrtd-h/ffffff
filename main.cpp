@@ -62,4 +62,11 @@ int main() {
 
     maybe_test();
     cq_test();
+
+    fff::Test<int> test;
+    test.data = 1;
+
+    auto test2 = test.lift([](const int &n) {return n * 2;});
+
+    std::cout << test2.data << '\n';
 }

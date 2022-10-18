@@ -38,9 +38,6 @@ public:
     }
 };
 
-template<typename T>
-class TD;
-
 template<class Cont>
 void print(Cont &&cont) {
     for (auto &&c : cont) {
@@ -194,9 +191,10 @@ void parallel_test() {
 void cq_test() {
     fff::Package f;
 
-    auto ret = f.go(ForwardingTester())
+    ForwardingTester ret = f.go(ForwardingTester())
         >> [](const ForwardingTester &ft) -> ForwardingTester {return ft.do_any();}
         >> [](ForwardingTester &&ft) {return std::move(ft);};
+
 }
 
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H

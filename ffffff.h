@@ -138,15 +138,24 @@ namespace fff {
     };
     
     template<template<class...> class C>
-    struct ChangeTemplateImpl {
+    struct TemplateReplace {
         template<template<class...> class D, typename ...T>
         constexpr static auto instead_of(D<T...>) noexcept -> C<T...>;
     };
     
     template<template<class...> class C, typename T>
-    using ChangeTemplate = decltype(ChangeTemplateImpl<C>::instead_of(std::declval<T>()));
+    using ChangeTemplate = decltype(TemplateReplace<C>::instead_of(std::declval<T>()));
     
     static_assert(std::is_same_v<std::vector<int>, ChangeTemplate<std::vector, std::optional<int>>>);
+
+    template<typename T>
+    struct ValueTypeReplace {
+        template<template<class, class...> class C, typename U>
+        constexpr static auto instead_of(C<U>) noexcept -> C<T>;
+    };
+
+    template<typename T, typenested U>
+    using ChangeValueType = decltype(ValueTypeReplace<T>::instead_of(std::declval<U>()));
     
     template<template<class> class Pred, typename T = void, typename ...Ts>
     requires unary_pred<Pred>
@@ -161,10 +170,10 @@ namespace fff {
     static_assert(not every_type_v<std::is_class, std::string, std::vector<int>, double>);
     
     
-    template<typename T, template<class> class C>
-    concept made_by = std::is_same_v<T, ChangeTemplate<C, T>>;
+    template<typename T, template<class, class...> class C>
+    concept made_by = std::is_same_v<std::decay_t<T>, ChangeTemplate<C, std::decay_t<T>>>;
     
-    template<typename T, template<class> class C>
+    template<typename T, template<class, class...> class C>
     concept not_made_by = not made_by<T, C>;
     
     static_assert(not made_by<std::vector<int>, std::optional>);
@@ -276,6 +285,8 @@ namespace fff {
     };
 
 
+    template<typename T>
+    class TD;
 }
 
 namespace fff::pol {
@@ -534,6 +545,15 @@ namespace fff {
 
         template<typename ...Args>
             requires nonvoid_invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+                -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
+
+        template<typename ...Args>
+            requires nonvoid_invocable<F, Args...>
         constexpr auto operator()(Args &&...args) const &&
             noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
                 -> std::invoke_result_t<F, Args...>
@@ -548,6 +568,16 @@ namespace fff {
                 -> Nulltype<>
         {
             std::invoke(f, std::forward<Args>(args)...);
+            return {};
+        }
+
+        template<typename ...Args>
+            requires void_invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+                -> Nulltype<>
+        {
+            std::invoke(std::move(f), std::forward<Args>(args)...);
             return {};
         }
 
@@ -632,9 +662,9 @@ namespace fff {
     struct OnceFactory {
         template<std::invocable F>
         constexpr auto operator()(F &&f) noexcept
-        -> Once<F>
+        -> Once<std::decay_t<F>>
         {
-            return Once<F>{std::forward<F>(f)};
+            return Once<std::decay_t<F>>{std::forward<F>(f)};
         }
     };
 }
@@ -766,6 +796,76 @@ namespace fff {
     inline MyClass m, m2, m3;
 }
 
+namespace fff {
+    /**
+     * An interface that offers lift() method. \n
+     * To use this, the derived class should implement lift_impl() method.
+     * @tparam T value-type
+     * @tparam C a type constructor that will offer lift() method
+     */
+    template<typename T, template<class, class...> class C>
+    class Lift_i {
+    public:
+        using Derived = C<T>;
+        using value_type = T;
+
+        template<std::invocable<T> F>
+        constexpr auto lift(F &&f)
+            noexcept(noexcept(static_cast<Derived*>(this)->lift_impl(std::forward<F>(f))))
+                -> C<std::invoke_result_t<F, T>>
+        {
+            return static_cast<Derived*>(this)->lift_impl(std::forward<F>(f));
+        }
+
+        template<std::invocable<T> F>
+        constexpr auto lift(F &&f) const
+            noexcept(noexcept(static_cast<Derived*>(this)->lift_impl(std::forward<F>(f))))
+                -> C<std::invoke_result_t<F, T>>
+        {
+            return static_cast<Derived*>(this)->lift_impl(std::forward<F>(f));
+        }
+    };
+
+    template<typename T, template<class, class...> class C>
+    class Flatlift_i {
+    public:
+        using Derived = C<T>;
+        using value_type = T;
+
+        template<std::invocable<T> F>
+            requires made_by<std::invoke_result_t<F, T>, C>
+        constexpr auto flatlift(F &&f)
+            noexcept(noexcept(static_cast<Derived*>(this)->flatlift_impl(std::forward<F>(f))))
+                -> std::invoke_result_t<F, T>
+        {
+            return static_cast<Derived*>(this)->flatlift_impl(std::forward<F>(f));
+        }
+
+        template<std::invocable<T> F>
+            requires made_by<std::invoke_result_t<F, T>, C>
+        constexpr auto flatlift(F &&f) const
+            noexcept(noexcept(static_cast<Derived*>(this)->flatlift_impl(std::forward<F>(f))))
+                -> std::invoke_result_t<F, T>
+        {
+            return static_cast<Derived*>(this)->flatlift_impl(std::forward<F>(f));
+        }
+    };
+
+    template<typename T>
+    struct Test : Lift_i<T, Test> {
+        T data;
+
+        template<std::invocable<T> F>
+        constexpr auto lift_impl(F &&f)
+        -> Test<std::invoke_result_t<F, T>>
+        {
+            Test<std::invoke_result_t<F, T>> temp;
+            temp.data = std::invoke(std::forward<F>(f), data);
+            return temp;
+        }
+    };
+}
+
 
 /*
  * fff::go(), fff::stop impl
@@ -777,19 +877,29 @@ namespace fff {
     class On {
         static_assert(not std::is_void_v<T>, "The template type must not be void");
         static_assert(not_made_by<T, On>, "Nested type like On<On<T>> is not allowed");
+        static_assert(not std::is_reference_v<T>, "Type T must not be a reference");
         
         T data;
-        
+
     public:
         constexpr explicit On(const T &t) noexcept(noexcept(T(t)))
             : data(t) {}
         constexpr explicit On(T &&t) noexcept(noexcept(T(std::move(t))))
             : data(std::move(t)) {}
         
-        constexpr explicit operator T() const noexcept {
+        constexpr explicit(false) operator T() const & noexcept {
             return data;
         }
+        constexpr explicit(false) operator T() && noexcept {
+            return std::move(data);
+        }
+        constexpr explicit(false) operator T() const && noexcept {
+            return std::move(data);
+        }
         
+        constexpr T &&operator>>(Stop) noexcept {
+            return std::move(data);
+        }
         constexpr T &&operator>>(Stop) const noexcept {
             return std::move(data);
         }
@@ -803,7 +913,7 @@ namespace fff {
         template<std::invocable<T> F>
         constexpr auto operator>>(F &&f) &
             noexcept(noexcept(std::invoke(std::forward<F>(f), data)))
-        -> On<std::invoke_result_t<F, T>>
+                -> On<std::invoke_result_t<F, T>>
         {
             return On<std::invoke_result_t<F, T>>(std::invoke(std::forward<F>(f), data));
         }
@@ -860,10 +970,10 @@ namespace fff {
     
     struct GoFactory {
         template<typename T>
-        constexpr auto operator()(T t) const noexcept
-        -> On<T>
+        constexpr auto operator()(T &&t) const noexcept
+        -> On<std::decay_t<T>>
         {
-            return On<T>(t);
+            return On<std::decay_t<T>>(std::forward<T>(t));
         }
     };
 }
@@ -933,14 +1043,14 @@ namespace fff {
     struct MaybeFactory {
         template<typename T>
         constexpr auto operator()(T &&t) const noexcept
-        -> Maybe<std::decay_t<T>>
+            -> Maybe<std::decay_t<T>>
         {
             return Maybe<std::decay_t<T>>(std::forward<T>(t));
         }
         
         template<typename T>
         constexpr auto make_nullopt() const noexcept
-        -> Maybe<T>
+            -> Maybe<T>
         {
             return Maybe<T>();
         }
@@ -1076,6 +1186,15 @@ namespace fff {
         {
             return std::invoke(f, std::forward<Args>(args)...);
         }
+
+        template<typename ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+                -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
     
         template<typename ...Args>
             requires std::invocable<F, Args...>
@@ -1089,6 +1208,11 @@ namespace fff {
         template<typename G>
         constexpr auto make_chain(G &&g) const & noexcept -> Parallel<F, std::decay_t<G>> {
             return Parallel<F, std::decay_t<G>>{f, std::forward<G>(g)};
+        }
+
+        template<typename G>
+        constexpr auto make_chain(G &&g) && noexcept -> Parallel<F, std::decay_t<G>> {
+            return Parallel<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
         }
 
         template<typename G>
@@ -1117,6 +1241,15 @@ namespace fff {
         {
             return std::invoke(f, std::forward<Args>(args)...);
         }
+
+        template<typename ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+                -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
     
         template<typename ...Args>
         requires std::invocable<F, Args...>
@@ -1136,6 +1269,16 @@ namespace fff {
         {
             return std::invoke(pfp, std::forward<Args>(args)...);
         }
+
+        template<typename ...Args>
+            requires (not std::invocable<F, Args...>
+                     and std::invocable<Parallel<Fp...>, Args...>)
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::invoke(std::move(pfp), std::forward<Args>(args)...)))
+                -> std::invoke_result_t<Parallel<Fp...>, Args...>
+        {
+            return std::invoke(std::move(pfp), std::forward<Args>(args)...);
+        }
     
         template<typename ...Args>
         requires (not std::invocable<F, Args...>
@@ -1152,6 +1295,13 @@ namespace fff {
             -> Parallel<F, Fp..., std::decay_t<G>>
         {
             return Parallel<F, Fp..., std::decay_t<G>>{f, pfp.make_chain(std::forward<G>(g))};
+        }
+
+        template<typename G>
+        constexpr auto make_chain(G &&g) && noexcept
+            -> Parallel<F, Fp..., std::decay_t<G>>
+        {
+            return Parallel<F, Fp..., std::decay_t<G>>{std::move(f), pfp.make_chain(std::forward<G>(g))};
         }
 
         template<typename G>
@@ -1210,6 +1360,15 @@ namespace fff {
         {
             return std::invoke(f, std::forward<Args>(args)...);
         }
+
+        template<class ...Args>
+            requires std::invocable<F, Args...>
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
+                -> std::invoke_result_t<F, Args...>
+        {
+            return std::invoke(std::move(f), std::forward<Args>(args)...);
+        }
     
         template<class ...Args>
         requires std::invocable<F, Args...>
@@ -1223,6 +1382,11 @@ namespace fff {
         template<class G>
         constexpr auto operator>>(G &&g) const & noexcept -> Pipeline<F, std::decay_t<G>> {
             return Pipeline<F, std::decay_t<G>>{f, std::forward<G>(g)};
+        }
+
+        template<class G>
+        constexpr auto operator>>(G &&g) && noexcept -> Pipeline<F, std::decay_t<G>> {
+            return Pipeline<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
         }
     
         template<class G>
@@ -1251,6 +1415,15 @@ namespace fff {
         {
             return std::invoke(f2, std::invoke(f1, std::forward<Args>(args)...));
         }
+
+        template<class ...Args>
+            requires not_mr<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...))))
+                -> std::invoke_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
+        {
+            return std::invoke(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...));
+        }
         
         template<class ...Args>
             requires not_mr<std::invoke_result_t<F1, Args...>>
@@ -1269,6 +1442,15 @@ namespace fff {
         {
             return std::apply(f2, std::invoke(f1, std::forward<Args>(args)...).to_tuple());
         }
+
+        template<class ...Args>
+            requires mr<std::invoke_result_t<F1, Args...>>
+        constexpr auto operator()(Args &&...args) &&
+            noexcept(noexcept(std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple())))
+                -> apply_as_mr_result_t<Pipeline<Fp...>, std::invoke_result_t<F1, Args...>>
+        {
+            return std::apply(std::move(f2), std::invoke(std::move(f1), std::forward<Args>(args)...).to_tuple());
+        }
     
         template<class ...Args>
             requires mr<std::invoke_result_t<F1, Args...>>
@@ -1284,6 +1466,13 @@ namespace fff {
         -> Pipeline<F1, Fp..., std::decay_t<G>>
         {
             return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
+        }
+
+        template<class G>
+        constexpr auto operator>>(G &&g) && noexcept
+            -> Pipeline<F1, Fp..., std::decay_t<G>>
+        {
+            return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
         }
     
         template<class G>
