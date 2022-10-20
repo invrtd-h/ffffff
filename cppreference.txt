@@ -156,3 +156,15 @@ constexpr std::invoke_result_t<F, Args...> invoke(F&& f, Args&&... args)
     else
         return std::forward<F>(f)(std::forward<Args>(args)...);
 }
+
+struct S {
+    R& f() { return f_impl(*this); }
+    const R& f() const { return f_impl(*this); }
+
+private:
+    template<typename T>
+    static auto f_impl(T& t) -> decltype(t.f()) {
+        /* some complicate code */
+        return reference_to_r;
+    }
+};

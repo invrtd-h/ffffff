@@ -61,12 +61,12 @@ int main() {
     std::cout << fff::MyClass::created() << '\n';
 
     maybe_test();
-    cq_test();
 
-    fff::Test<int> test;
-    test.data = 1;
-
+    fff::Test<int> test(1);
     auto test2 = test.lift([](const int &n) {return n * 2;});
-
     std::cout << test2.data << '\n';
+
+    fff::Test<ForwardingTester> test3((ForwardingTester()));
+    auto test4 = test.lift(fff::copy);
+    auto test5 = fff::Test<ForwardingTester>(ForwardingTester()).lift(fff::copy);
 }

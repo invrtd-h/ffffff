@@ -4,24 +4,24 @@
 class ForwardingTester {
 public:
     ForwardingTester() {
-        std::cout << "기본 생성자 호출!\n";
+        std::cout << "기본 생성자 호출!" << std::endl;
     }
     ForwardingTester(const ForwardingTester &ft) {
-        std::cout << "복사 생성자 호출!\n";
+        std::cout << "복사 생성자 호출!" << std::endl;
     }
     ForwardingTester(ForwardingTester &&ft) noexcept {
-        std::cout << "이동 생성자 호출!\n";
+        std::cout << "이동 생성자 호출!" << std::endl;
     }
     ForwardingTester &operator=(const ForwardingTester &ft) {
-        std::cout << "복사 대입 생성자 호출!\n";
+        std::cout << "복사 대입 생성자 호출!" << std::endl;
         return *this;
     }
     ForwardingTester &operator=(ForwardingTester &&ft) noexcept {
-        std::cout << "이동 대입 생성자 호출!\n";
+        std::cout << "이동 대입 생성자 호출!" << std::endl;
         return *this;
     }
     ~ForwardingTester() {
-        std::cout << "소멸자 호출!\n";
+        std::cout << "소멸자 호출!" << std::endl;
     }
     
     ForwardingTester &catch_instance(const ForwardingTester &ft) {
@@ -35,6 +35,13 @@ public:
 
     [[nodiscard]] ForwardingTester do_any() const {
         return {};
+    }
+
+    ForwardingTester &self() & {
+        return *this;
+    }
+    ForwardingTester self() && {
+        return std::move(*this);
     }
 };
 
