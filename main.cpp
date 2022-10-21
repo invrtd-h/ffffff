@@ -66,7 +66,22 @@ int main() {
     auto test2 = test.lift([](const int &n) {return n * 2;});
     std::cout << test2.data << '\n';
 
-    fff::Test<ForwardingTester> test3((ForwardingTester()));
-    auto test4 = test.lift(fff::copy);
-    auto test5 = fff::Test<ForwardingTester>(ForwardingTester()).lift(fff::copy);
+    auto test4 = fff::Test<ForwardingTester>(ForwardingTester{}).lift(f.copy);
+
+    auto k = f.null_lift([](int n) {return 2 * n;});
+    std::cout << k(2) << '\n';
+
+    auto l = f.null_lift([]() {std::cout << "Hello\n";});
+    l();
+
+    auto r = [](int l, int r) {return l + r;};
+    auto s = fff::static_l_bind<8>(r);
+
+    std::cout << s(4) << '\n';
+
+    auto t = fff::static_l_bind<6, 9>(r);
+    std::cout << t() << '\n';
+
+    std::cout << typeid(t).name() << '\n';
+
 }
