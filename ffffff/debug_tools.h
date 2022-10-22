@@ -1,6 +1,8 @@
 #ifndef UNDERSCORE_CPP_DEBUG_TOOLS_H
 #define UNDERSCORE_CPP_DEBUG_TOOLS_H
 
+#include "pipeline.hpp"
+
 class ForwardingTester {
 public:
     ForwardingTester() {
@@ -68,44 +70,7 @@ void f220921() {
     
     print(cont);
     print(ccont);
-    
-    print(fff::filter(ccont, [](const auto &s) {
-        return s % 2;
-    }));
-    
-    print(fff::reject(ccont, [](const auto &s) {
-        return s % 2;
-    }));
-    
-    std::cout << fff::every(ccont, [](auto &s) {
-        return s % 2;
-    }) << '\n';
-}
 
-void once_test() {
-    auto once = fff::once([]() noexcept {
-        std::cout << "Hello\n";
-    });
-    
-    once(); once();
-    std::cout << "The sizeof once is " << sizeof(once) << '\n';
-}
-
-void concat_test() {
-    auto print_str = [](const std::string &s) {std::cout << s << '\n';};
-    
-    auto overloaded = fff::overload(
-            [](int n) { std::cout << n << '\n'; },
-            [](double n) { std::cout << n << '\n'; },
-            print_str
-    );
-    
-    overloaded(1);
-    overloaded(4.9);
-    overloaded("String");
-    
-    int r = 3;
-    
 }
 
 template<int N>
@@ -120,88 +85,20 @@ auto add_r = [](int &n) -> void {n += N;};
 template<int N>
 auto multiply_r = [](int &n) -> void {n *= N;};
 
-auto drop_negative = [](int n) {
-    return n >= 0 ? fff::maybe(n) : fff::maybe.make_nullopt<int>();
-};
-
-auto pass = [](const int &n) {
-    std::cout << "passed " << n << '\n';
-    return n;
-};
-
-void maybe_test() {
-    auto may = fff::maybe(1);
-    auto may_copy = may >> multiply<3> >> add<6>;
-    
-    std::cout << may.value() << ' ' << may_copy.value() << '\n';
-    
-    auto may3 = may >> multiply<60> >> drop_negative >> pass;
-    static_assert(std::is_same_v<decltype(may3), decltype(may)>);
-    std::cout << typeid(may).name() << ' ' << typeid(may3).name() << '\n';
-    
-    auto may_not = fff::maybe.make_nullopt<int>();
-    may_not << multiply_r<41771>;
-    
-    std::cout << may_not.has_value() << '\n';
-    
-    
-}
-
 auto foo_factory(int a, int b, int c) {
     return [a, b, c](int x, int y) {
         return a + b + c + x + y;
     };
 }
 
-void fly_test() {
-    static_assert(sizeof(std::function<int(int)>) == 32);
-    
-    fff::Package f;
-    
-    auto g = f.fly(foo_factory(1, 2, 3));
-    auto h{g};
-    std::cout << g(4, 5) << ' ' << h(6, 7) << '\n';
-    
-    static_assert(sizeof(g) == 8);
-}
+void pipeop_test() {
+    using namespace fff::pipe_op;
 
-void parallel_test() {
-    fff::Package f;
-    
-    int r = 3;
-    
-    auto print_str = [](const std::string &s) {std::cout << s << '\n';};
-    
-    auto g = fff::parallel(
-            [r](int n) {std::cout << n * 2 + r << '\n';},
-            [r](double n) {std::cout << n * 2 + r << '\n';},
-            print_str
-    );
-    
-    g(1);
-    g(4.9);
-    g("My New String");
-    
-    std::cout << "The sizeof g is " << sizeof(g) << '\n';
+    auto x = 1 | [](int n) {return 2 * n;} | [](int n) {return 3 + n;};
+    std::cout << x << '\n';
 
-    auto g2 = fff::parallel.make_chain([r](int n) {std::cout << n * 2 + r << '\n';})
-                  .make_chain([r](double n) {std::cout << n * 2 + r << '\n';})
-                  .make_chain(print_str);
-
-    g2(1);
-    g2(4.9);
-    g2("My New String");
-
-    std::cout << "The sizeof g2 is " << sizeof(g2) << '\n';
-}
-
-void cq_test() {
-    fff::Package f;
-
-    ForwardingTester ret = f.go(ForwardingTester())
-        >> [](const ForwardingTester &ft) -> ForwardingTester {return ft.do_any();}
-        >> [](ForwardingTester &&ft) {return std::move(ft);};
-
+    auto y = 3 | [](int n) {return fff::multi_return(n * 2, n + 3);} | std::plus<>();
+    std::cout << y << '\n';
 }
 
 #endif //UNDERSCORE_CPP_DEBUG_TOOLS_H
