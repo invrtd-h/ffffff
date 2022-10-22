@@ -1,10 +1,8 @@
 #include <iostream>
 #include <vector>
 
-#include "ffffff.h"
-#include "debug_tools.h"
-
-#include "classify.h"
+#include "include/ffffff.hpp"
+#include "include/debug_tools.h"
 
 class Bar {
     friend class fff::AsSingle<Bar>;

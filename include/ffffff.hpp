@@ -2,8 +2,8 @@
 * @author Hyegeun Song (Github : invrtd-h)
 */
 
-#ifndef UNDERSCORE_CPP_FFFFFF_H
-#define UNDERSCORE_CPP_FFFFFF_H
+#ifndef UNDERSCORE_CPP_FFFFFF_HPP
+#define UNDERSCORE_CPP_FFFFFF_HPP
 
 #include <type_traits>
 #include <functional>
@@ -16,332 +16,7 @@
 #include <ranges>
 #include <tuple>
 
-namespace fff {
-
-   struct constexpr_determination {
-       /**
-        * determines if the parameter is constant-evaluated
-        * @return true, always
-        * @error if the parameter is NOT constant-evaluated
-        */
-       consteval static bool is_consteval_var(auto &&) noexcept {
-           return true;
-       }
-   };
-
-   /**
-    * Determines the type of a value at compile time.
-    * @example Typeof\<1> == int
-    * @example Typeof\<std::make_pair(1, 1)> == std::pair\<int, int>
-    */
-   template<auto V>
-   using type_of = std::decay_t<decltype(V)>;
-
-   template<unsigned int N, typename T = void, typename ...U>
-   struct among_impl {
-       using type = typename among_impl<N - 1, U...>::type;
-   };
-
-   template<typename T, typename ...U>
-   struct among_impl<0, T, U...> {
-       using type = T;
-   };
-
-   template<typename ...T>
-   struct among {
-       template<unsigned int N>
-       using get = typename among_impl<N, T...>::type;
-   };
-
-   static_assert(std::is_same_v<int, among<char, double, int>::get<2>>);
-
-   template<unsigned int N, typename ...T>
-   using nth_among = typename among<T...>::template get<N>;
-
-   template<unsigned int N>
-   struct type_at {
-       template<template<class, class...> class C, typename T, typename ...U>
-       constexpr static auto of(C<T, U...>) noexcept -> nth_among<N, T, U...>;
-   };
-
-   template<typename T, unsigned int N = 0>
-   using value_type_t = decltype(type_at<N>::of(std::declval<T>()));
-
-   static_assert(std::is_same_v<int, value_type_t<std::unordered_map<double, int>, 1>>);
-
-   /**
-    * Determines whether T is made by type constructor that holds ONLY types, like std::vector\<int> or std::pair\<int, int>
-    * @warning If T is made by type constructor but holds non-type param (like std::array\<int, 3>), type_nested\<T> is evaluated as false
-    * @example std::pair\<std::vector\<int>, int> is type_nested
-    * @example int is not type_nested
-    * @example std::array\<int, 3> is NOT type_nested
-    * @tparam T any
-    */
-   template<typename T>
-   concept type_nested =
-       requires {
-           type_at<0>::of(std::declval<T>());
-       };
-
-   template<typename T>
-   concept non_type_nested =
-       not type_nested<T>;
-
-   static_assert(non_type_nested<int>);
-   static_assert(type_nested<std::vector<int>>);
-   static_assert(type_nested<std::pair<int, int>>);
-   static_assert(non_type_nested<std::array<int, 3>>);
-
-   /**
-    * A concept determines whether the given C is a unary predicate.
-    * @tparam C Any unary type constructor
-    * @example unary_pred\<std::is_class> is true, since std::is_class\<T>::value is evaluated as bool
-    * @example unary_pred\<std::vector> is false
-    */
-   template<template<class> class C>
-   concept unary_pred = requires {
-                            { C<int>::value } -> std::convertible_to<bool>;
-                            constexpr_determination::is_consteval_var(C<int>::value);
-                        };
-
-   static_assert(unary_pred<std::is_class> and not unary_pred<std::vector>);
-
-
-
-   /**
-    * A temporal type holder that holds any type.
-    * @tparam T, Ts any typename
-    * @example temp_type_holder\<int, double, char> is valid. (There is no requirement)
-    * @using type, the type alias for T
-    * @using next, the type alias for temp_type_holder\<Ts...> i.e. a class that temporally holds all types except T
-    * @example temp_type_holder\<int, double, char>::next::next::type == char
-    */
-   template<typename T, typename ...Ts>
-   struct temp_type_holder {
-       using type = T;
-       using next = temp_type_holder<Ts...>;
-
-       /**
-        * Determines whether every T and Ts... satisfies the predicate.
-        * @tparam C A unary predicate that C\<T>::value is evaluated as a constexpr bool
-        */
-       template<template<class> class C>
-           requires unary_pred<C>
-       constexpr static const bool value = C<type>::value and
-           (std::is_void_v<next> or next::template value<C>);
-   };
-
-   template<typename T>
-   struct temp_type_holder<T> {
-       using type = T;
-       using next = void;
-
-       /**
-        * Determines whether every T and Ts... satisfies the predicate.
-        * @tparam C A unary predicate that C<T>::value is evaluated as a constexpr bool
-        */
-       template<template<class> class C>
-           requires unary_pred<C>
-       constexpr static const bool value = C<type>::value;
-   };
-
-   /**
-    * @see change_template_t (just below)
-    */
-   template<template<class...> class C>
-   struct template_replace {
-       template<template<class...> class D, typename ...T>
-       constexpr static auto instead_of(D<T...>) noexcept -> C<T...>;
-   };
-
-   /**
-    * change_template_t\<C, D\<T>> = C\<T>
-    * @example change_template_t\<std::vector, std::optional\<int>> == std::vector\<int>
-    */
-   template<template<class...> class C, typename T>
-   using change_template_t = decltype(template_replace<C>::instead_of(std::declval<T>()));
-
-   static_assert(std::is_same_v<std::vector<int>, change_template_t<std::vector, std::optional<int>>>);
-
-   /**
-    * @see change_value_type_t (just below)
-    */
-   template<typename T>
-   struct value_type_replace {
-       template<template<class, class...> class C, typename U>
-       constexpr static auto instead_of(C<U>) noexcept -> C<T>;
-   };
-
-   /**
-    * change_template_type_t\<T, C\<U>> == C\<T>
-    * @example change_template_type_t\<int, std::vector\<double>> == std::vector\<int>
-    */
-   template<typename T, type_nested U>
-   using change_value_type_t = decltype(value_type_replace<T>::instead_of(std::declval<U>()));
-
-   template<template<class> class Pred, typename T = void, typename ...Ts>
-       requires unary_pred<Pred>
-   struct every_type_satisfies {
-       constexpr const static bool value =
-           std::is_void_v<T> or (Pred<T>::value and every_type_satisfies<Pred, Ts...>::value);
-   };
-
-   template<template<class> class Pred, typename T = void, typename ...Ts>
-   constexpr const inline bool every_type_satisfies_v = every_type_satisfies<Pred, T, Ts...>::value;
-
-   static_assert(not every_type_satisfies_v<std::is_class, std::string, std::vector<int>, double>);
-
-
-   template<typename T, template<class, class...> class C>
-   concept made_by = std::is_same_v<std::decay_t<T>,
-   change_template_t <C, std::decay_t<T>>>;
-
-   template<typename T, template<class, class...> class C>
-   concept not_made_by = not made_by<T, C>;
-
-   static_assert(not made_by<std::vector<int>, std::optional>);
-
-   /**
-    * @see below, the definition of concept unrelated_with
-    */
-   template<template<class> class C>
-   struct is_unrelated_with_impl {
-
-       template<typename T>
-       struct is_unrelated_with : std::true_type {};
-
-       /**
-        * If T is not "type_nested" type, then T is unrelated with C.\n
-        * If T is "type_nested" type, say, T = D\<T1, T2, ..., Tp>, then T is unrelated with C IFF (T1 is unrelated with C and T2 is unrelated with C and ... Tp is unrelated with C).
-        * @tparam T any
-        */
-       template<type_nested T>
-       struct is_unrelated_with<T> {
-           using TypeMove = change_template_t<temp_type_holder, T>;
-           constexpr static bool value =
-               (not made_by<T, C> and TypeMove::template value<is_unrelated_with>);
-       };
-   };
-
-   /**
-    * determines whether every sub-types of T is "unrelated_with" C. This process is recursive.
-    * @tparam T any-type
-    * @tparam C any unary type constructor
-    */
-   template<typename T, template<class> class C>
-   concept unrelated_with = is_unrelated_with_impl<C>::template is_unrelated_with<T>::value;
-
-   template<typename T, template<class> class C>
-   concept related_with = not unrelated_with<T, C>;
-
-   static_assert(related_with<std::pair<std::vector<int>, std::pair<int, int>>, std::vector>);
-   static_assert(unrelated_with<std::tuple<int, std::tuple<int, double, int>>, std::vector>);
-
-
-   /**
-    * @see apply_result_t (just below)
-    */
-   struct declapply_impl {
-       template<typename F, typename ...Ts>
-       constexpr static auto declapply(F &&f, const std::tuple<Ts...> &tts) noexcept
-           -> std::invoke_result_t<F, Ts...>;
-   };
-
-   /**
-    * the "apply" version of std::invoke_result_t.
-    * @tparam F function type
-    * @tparam Ts function argument type param pack
-    */
-   template<typename F, typename ...Ts>
-   using apply_result_t = decltype(declapply_impl::declapply(std::declval<F>(), std::declval<std::tuple<Ts...>>()));
-
-   /**
-    * determines whether the decayed versions of T and U are similar type
-    * @tparam T, U any
-    */
-   template<typename T, typename U>
-   concept similar = std::is_same_v<std::decay_t<T>, std::decay_t<U>>
-       and std::is_same_v<std::decay_t<U>, std::decay_t<T>>;
-
-   template<typename T, typename U>
-   concept different = not similar<T, U>;
-
-   static_assert(similar<int*, int[]>);
-
-
-
-   template<typename T, template<class> class C>
-   concept derived_as_crtp = std::derived_from<T, C<T>>;
-
-   template<typename F, typename ...Args>
-   concept nonvoid_invocable = std::invocable<F, Args...>
-       and not std::is_void_v<std::invoke_result_t<F, Args...>>;
-
-   template<typename F, typename ...Args>
-   concept void_invocable = std::invocable<F, Args...>
-       and std::is_void_v<std::invoke_result_t<F, Args...>>;
-
-   template<typename T>
-   concept class_as_value =
-       requires {
-           T::value;
-       };
-
-   template<typename T>
-   concept class_as_type =
-       requires {
-           typename T::type;
-       };
-}
-
-namespace fff {
-
-   template<typename T>
-   concept dereferencible = requires (T t) {*t;};
-
-   template<typename T>
-   concept negatable = requires (T t) {!t;};
-
-   template<typename T>
-   concept flippable = requires (T t) {~t;};
-
-   template<template<class> class C>
-   concept backpushable = requires (C<int> cont) {
-                              cont.push_back(0);
-                          };
-
-   template<template<class> class C>
-   concept insertible = requires (C<int> cont) {
-                            cont.insert(0);
-                        };
-
-   template<typename T>
-   concept maybetype = requires {
-                           T::is_maybe;
-                       };
-
-
-   template<typename T>
-   class TD;
-}
-
-namespace fff::pol {
-   /**
-    * @deprecated since we do not use Bloop class
-    * @see class Bloop
-    */
-   struct NewDataPolicy {
-       static constexpr bool is_new_data_policy = true;
-   };
-
-   /**
-    * @deprecated since we do not use Bloop class
-    * @see class Bloop
-    */
-   struct ExecutionPolicy {
-       static constexpr bool is_execution_policy = true;
-   };
-}
+#include "tmf.hpp"
 
 namespace fff {
    template<typename ...Ts>
@@ -427,12 +102,6 @@ namespace fff {
    };
 
    using Identity = IdentityAt<0>;
-}
-
-/*
-* fff::CopyAt impl
-*/
-namespace fff {
 
    /**
     * The function object that returns the copy of the SZ-th value.
@@ -474,6 +143,17 @@ namespace fff {
 namespace fff {
 
    /**
+    * A null type that works as a "null_t Object".
+    * Use CRTP pattern to inherit this type and make any "null_t Object" you want.
+    */
+   template<typename T = void>
+   struct null_i {
+       const static bool nullity = true;
+   };
+
+   using null_t = null_i<>;
+
+   /**
     * No-operation function obj.
     */
    struct Noop {
@@ -484,8 +164,8 @@ namespace fff {
         * @return nothing
         */
        template<class ...Args>
-       constexpr void operator()(Args &&...) const noexcept {
-           // do nothing
+       constexpr auto operator()(Args &&...) const noexcept -> null_t {
+           return {};
        }
    };
 }
@@ -495,35 +175,24 @@ namespace fff {
 */
 namespace fff {
 
-   /**
-    * A callable that always Returns a constant.
-    * @tparam T the type of the constant to return
-    */
-   template<typename T>
-   struct AlwaysConstant {
-       using type = T;
-       /**
-        * @tparam t the value of the constant to return
-        */
-       template<T t>
-       struct Returns {
-           /**
-            * @tparam Args Any
-            * @param args any
-            * @return t, pre-defined value by definition of the callable (orthogonal to args)
-            */
-           template<class ...Args>
-           constexpr T operator()(Args &&...) const noexcept {
-               return t;
-           }
-       };
+   template<auto v>
+   struct always_constant_f {
+       using type = std::decay_t<decltype(v)>;
+       constexpr static type value = v;
+
+       template<class ...Args>
+       constexpr type operator()(Args &&...) const noexcept {
+           return v;
+       }
    };
 
-   using AlwaysTrue = AlwaysConstant<bool>::Returns<true>;
-   using AlwaysFalse = AlwaysConstant<bool>::Returns<false>;
+   using always_true_f = always_constant_f<true>;
+   using always_false_f = always_constant_f<false>;
 
-   constexpr inline AlwaysTrue always_true;
-   constexpr inline AlwaysFalse always_false;
+   constexpr inline always_true_f always_true;
+   constexpr inline always_false_f always_false;
+
+   static_assert(std::is_same_v<always_true_f::type, bool>);
 }
 
 /*
@@ -553,14 +222,13 @@ namespace fff {
     /**
      * A CRTP Pattern that gives "operator()" function.\n
      * To implement "operator()" function, it is sufficient to implement a static 'call_impl' template function.
-     * @example template\<class F> class Foo : Callable_i\<F, Foo> { (implements...) }
+     * @example template\<class F> class Foo : callable_i\<F, Foo> { (implements...) }
      */
-    template<typename F, template<class, class...> class C,
-            template<class, class...> class TypeDeduction = auto_decl,
-            typename Derived = C<F>>
-    class Callable_i {
+    template<typename F, typename Derived,
+            template<class, class...> class TypeDeduction = auto_decl>
+    class callable_i {
     public:
-        using value_type = F;
+        using function_type = F;
 
         template<typename ...Args>
         constexpr auto operator()(Args &&...args) &
@@ -595,11 +263,10 @@ namespace fff {
         }
     };
 
-    template<typename F, template<class, class...> class C>
-    class Callable_i<F, C, auto_decl> {
+    template<typename F, typename Derived>
+    class callable_i<F, Derived, auto_decl> {
     public:
-        using Derived = C<F>;
-        using value_type = F;
+        using function_type = F;
 
         template<typename ...Args>
         constexpr auto operator()(Args &&...args) &
@@ -632,24 +299,13 @@ namespace fff {
 };
 
 /**
-* fff::(Null object class) impl
+* fff::(null_t object class) impl
 */
 
 namespace fff {
 
-   /**
-    * A null type that works as a "Null Object".
-    * Use CRTP pattern to inherit this type and make any "Null Object" you want.
-    */
-   template<typename T = void>
-   struct Null_i {
-       const static bool nullity = true;
-   };
-
-   using Null = Null_i<>;
-
    template<typename T>
-   using Null_or_t = std::conditional_t<std::is_void_v<T>, Null, T>;
+   using Null_or_t = std::conditional_t<std::is_void_v<T>, null_t, T>;
 
    template<typename F, typename ...Args>
    struct NullLifted_TD_Impl {
@@ -657,8 +313,8 @@ namespace fff {
    };
 
    template<class F>
-   class NullLifted : public Callable_i<F, NullLifted, NullLifted_TD_Impl> {
-       friend Callable_i<F, NullLifted, NullLifted_TD_Impl>;
+   class NullLifted : public callable_i<F, NullLifted<F>, NullLifted_TD_Impl> {
+       friend callable_i<F, NullLifted, NullLifted_TD_Impl>;
        friend class NullLiftFactory;
 
        [[no_unique_address]] F f;
@@ -673,7 +329,7 @@ namespace fff {
        {
            if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>) {
                std::invoke(std::forward<Self>(self).f_fwd(), std::forward<Args>(args)...);
-               return Null{};
+               return null_t{};
            } else {
                return std::invoke(std::forward<Self>(self).f_fwd(), std::forward<Args>(args)...);
            }
@@ -701,32 +357,25 @@ namespace fff {
  */
 
 namespace fff {
-    template<auto v>
-    struct value_holder {
-        using type = decltype(v);
-        constexpr static decltype(v) value = v;
-    };
 
     template<class_as_value ...ValueHolders>
     struct static_l_bind_TD_impl {
         template<typename F, typename ...Args>
-        struct Inner {
+        struct inner {
             using type = std::invoke_result_t<F, typename ValueHolders::type..., Args...>;
         };
     };
 
     template<typename F, class_as_value ...ValueHolders>
     class static_l_bind_f
-        : public Callable_i<F, static_l_bind_f,
-                            static_l_bind_TD_impl<ValueHolders...>::template Inner,
-                            static_l_bind_f<F, ValueHolders...>> {
+        : public callable_i<F, static_l_bind_f<F, ValueHolders...>,
+                            static_l_bind_TD_impl<ValueHolders...>::template inner> {
 
         template<auto ...vp>
         friend class static_l_bind_factory;
 
-        friend Callable_i<F, static_l_bind_f,
-                          static_l_bind_TD_impl<ValueHolders...>::template Inner,
-                          static_l_bind_f<F, ValueHolders...>>;
+        friend callable_i<F, static_l_bind_f<F, ValueHolders...>,
+                            static_l_bind_TD_impl<ValueHolders...>::template inner>;
 
         [[no_unique_address]] F f;
 
@@ -891,6 +540,7 @@ namespace fff {
        explicit Fly(F &&f) : p(new F(std::move(f))) {}
 
        Fly(const Fly &fly) : p(new F(*fly.p)) {}
+       Fly(Fly &&fly) noexcept = default;
        Fly &operator=(const Fly &fly) {
            p = std::make_unique<F>(*fly.p);
            return *this;
@@ -910,8 +560,8 @@ namespace fff {
 
    struct FlyFactory {
        template<class F>
-       constexpr auto operator()(F &&f) const noexcept -> Fly<F> {
-           return Fly<F>(std::forward<F>(f));
+       constexpr auto operator()(F &&f) const noexcept -> Fly<std::decay_t<F>> {
+           return Fly<std::decay_t<F>>(std::forward<F>(f));
        }
    };
 }
@@ -1750,7 +1400,7 @@ namespace fff {
     * @return any std::(container) with type U
     */
 
-   struct PreallocCont : public pol::NewDataPolicy {
+   struct PreallocCont {
        template<typename T, class FuncObj, size_t N>
            requires std::invocable<FuncObj, T>
            and std::is_default_constructible_v<std::invoke_result_t<FuncObj, T>>
@@ -1767,7 +1417,7 @@ namespace fff {
        }
    };
 
-   struct NewCont : public pol::NewDataPolicy {
+   struct NewCont {
        template<class Cont, class FuncObj>
            requires std::ranges::range<Cont>
            and std::is_default_constructible_v<Cont>
@@ -1776,7 +1426,7 @@ namespace fff {
        }
    };
 
-   struct MapExecution : public pol::ExecutionPolicy {
+   struct MapExecution {
        /**
         * @todo consider if the return value of func is void
         */
@@ -1800,7 +1450,7 @@ namespace fff {
        }
    };
 
-   struct PushExecution : public pol::ExecutionPolicy {
+   struct PushExecution {
        template<class T_cont, class FuncObj>
            requires std::ranges::range<T_cont>
            and std::convertible_to<std::invoke_result_t<FuncObj, typename T_cont::value_type>, bool>
@@ -1988,8 +1638,8 @@ namespace fff {
        [[no_unique_address]] Every every{};
        [[no_unique_address]] None none{};
 
-       [[no_unique_address]] AlwaysTrue always_true{};
-       [[no_unique_address]] AlwaysFalse always_false{};
+       [[no_unique_address]] always_true_f always_true{};
+       [[no_unique_address]] always_false_f always_false{};
 
        [[no_unique_address]] NullLiftFactory null_lift{};
 
@@ -2015,5 +1665,5 @@ namespace fff {
 
 static_assert(std::is_empty_v<fff::Package>, "the Package class should be empty");
 
-#endif //UNDERSCORE_CPP_FFFFFF_H
+#endif //UNDERSCORE_CPP_FFFFFF_HPP
 
