@@ -17,6 +17,7 @@
 #include <tuple>
 
 #include "tmf.hpp"
+#include "basic_ops.hpp"
 
 namespace fff {
    template<typename ...Ts>
@@ -62,137 +63,6 @@ namespace fff {
        decltype(DeclMr::declmr(std::declval<F>(), std::declval<T>()));
 
    constexpr inline MultiReturnFactory multi_return;
-}
-
-/*
-* fff::Identity impl
-*/
-namespace fff {
-   /**
-    * The function object that returns the SZ-th value by perfect forwarding.
-    * @example IdentityAt\<2>()(1, 2, std::string("a")) \n
-    * Returns the rvalue of std::string("a")
-    * @tparam SZ the position to return
-    * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
-    */
-   template<size_t SZ>
-   struct IdentityAt {
-       /**
-        * @tparam T Any-type
-        * @tparam Args Any-parameter-pack
-        * @param t Any-variable
-        * @param args Any-variable-pack
-        * @return std::forward<T>(t)
-        */
-       template<class T, typename... Args>
-       constexpr auto &&operator()(T &&, Args &&...args) const noexcept {
-           return std::invoke(IdentityAt<SZ - 1>(), std::forward<Args>(args)...);
-       }
-   };
-
-   template<>
-   struct IdentityAt<0> {
-       /**
-        * Template specification of IdentityAt<> (read upward)
-        */
-       template<class T, typename ...Args>
-       constexpr T &&operator()(T &&t, Args &&...) const noexcept {
-           return std::forward<T>(t);
-       }
-   };
-
-   using Identity = IdentityAt<0>;
-
-   /**
-    * The function object that returns the copy of the SZ-th value.
-    * @tparam SZ the position to return
-    */
-   template<size_t SZ>
-   struct CopyAt {
-       /**
-        * @tparam T Any-type
-        * @tparam Args Any-parameter-pack
-        * @param t Any-variable
-        * @param args Any-variable-pack
-        * @return std::forward<T>(t)
-        */
-       template<class T, typename ...Args>
-       constexpr auto operator()(T &&, Args &&...args) const noexcept {
-           return std::invoke(CopyAt<SZ - 1>(), std::forward<Args>(args)...);
-       }
-   };
-
-   template<>
-   struct CopyAt<0> {
-       /**
-        * Template specification of IdentityAt<> (read upward)
-        */
-       template<class T, typename ...Args>
-       constexpr std::decay_t<T> operator()(T &&t, Args &&...) const noexcept {
-           return t;
-       }
-   };
-
-   using Copy = CopyAt<0>;
-   constexpr inline Copy copy;
-}
-
-/*
-* fff::Noop impl
-*/
-namespace fff {
-
-   /**
-    * A null type that works as a "null_t Object".
-    * Use CRTP pattern to inherit this type and make any "null_t Object" you want.
-    */
-   template<typename T = void>
-   struct null_i {
-       const static bool nullity = true;
-   };
-
-   using null_t = null_i<>;
-
-   /**
-    * No-operation function obj.
-    */
-   struct Noop {
-       /**
-        * No-operation operator().
-        * @tparam Args parameter pack of any-types
-        * @param args parameter pack of any-variables
-        * @return nothing
-        */
-       template<class ...Args>
-       constexpr auto operator()(Args &&...) const noexcept -> null_t {
-           return {};
-       }
-   };
-}
-
-/*
-* fff::AlwaysConstant impl
-*/
-namespace fff {
-
-   template<auto v>
-   struct always_constant_f {
-       using type = std::decay_t<decltype(v)>;
-       constexpr static type value = v;
-
-       template<class ...Args>
-       constexpr type operator()(Args &&...) const noexcept {
-           return v;
-       }
-   };
-
-   using always_true_f = always_constant_f<true>;
-   using always_false_f = always_constant_f<false>;
-
-   constexpr inline always_true_f always_true;
-   constexpr inline always_false_f always_false;
-
-   static_assert(std::is_same_v<always_true_f::type, bool>);
 }
 
 /*
@@ -362,7 +232,7 @@ namespace fff {
     struct static_l_bind_TD_impl {
         template<typename F, typename ...Args>
         struct inner {
-            using type = std::invoke_result_t<F, typename ValueHolders::type..., Args...>;
+            using type = std::invoke_result_t<F, const typename ValueHolders::type &..., Args...>;
         };
     };
 
@@ -414,6 +284,65 @@ namespace fff {
 
     template<auto ...vp>
     constexpr inline static_l_bind_factory<vp...> static_l_bind;
+
+
+
+    template<class_as_value ...ValueHolders>
+    struct static_r_bind_TD_impl {
+        template<typename F, typename ...Args>
+        struct inner {
+            using type = std::invoke_result_t<F, Args..., const typename ValueHolders::type &...>;
+        };
+    };
+
+    template<typename F, class_as_value ...ValueHolders>
+    class static_r_bind_f
+        : public callable_i<F, static_r_bind_f<F, ValueHolders...>,
+                            static_r_bind_TD_impl<ValueHolders...>::template inner> {
+
+        template<auto ...vp>
+        friend class static_r_bind_factory;
+
+        friend callable_i<F, static_r_bind_f<F, ValueHolders...>,
+                          static_r_bind_TD_impl<ValueHolders...>::template inner>;
+
+        [[no_unique_address]] F f;
+
+        constexpr explicit static_r_bind_f(const F &f) noexcept : f(f) {}
+        constexpr explicit static_r_bind_f(F &&f) noexcept : f(std::move(f)) {}
+
+        template<similar<static_r_bind_f> Self, typename ...Args>
+            requires std::invocable<F, Args..., const typename ValueHolders::type &...>
+        constexpr static auto call_impl(Self &&self, Args &&...args)
+            noexcept(std::is_nothrow_invocable_v<F, Args..., const typename ValueHolders::type &...>)
+                -> std::invoke_result_t<F, Args..., const typename ValueHolders::type &...>
+        {
+            return std::invoke(std::forward<Self>(self).f_fwd(),
+                               std::forward<Args>(args)...,
+                               ValueHolders::value...);
+        }
+
+        constexpr       F &  f_fwd()       &  noexcept {return f;}
+        constexpr const F &  f_fwd() const &  noexcept {return f;}
+        constexpr       F && f_fwd()       && noexcept {return std::move(f);}
+        constexpr const F && f_fwd() const && noexcept {return std::move(f);}
+
+    public:
+        using function_type = F;
+    };
+
+    template<auto ...vp>
+    struct static_r_bind_factory {
+        template<class F>
+        constexpr auto operator()(F &&f) const noexcept
+            -> static_r_bind_f<std::decay_t<F>, value_holder<vp>...>
+        {
+            return static_r_bind_f<std::decay_t<F>, value_holder<vp>...>{std::forward<F>(f)};
+        }
+    };
+
+    template<auto ...vp>
+    constexpr inline static_r_bind_factory<vp...> static_r_bind;
 }
 
 /*
@@ -923,17 +852,17 @@ namespace fff {
        }
 
        template<class G>
-       constexpr auto operator>>(G &&g) const & noexcept -> Pipeline<F, std::decay_t<G>> {
+       constexpr auto operator|(G &&g) const & noexcept -> Pipeline<F, std::decay_t<G>> {
            return Pipeline<F, std::decay_t<G>>{f, std::forward<G>(g)};
        }
 
        template<class G>
-       constexpr auto operator>>(G &&g) && noexcept -> Pipeline<F, std::decay_t<G>> {
+       constexpr auto operator|(G &&g) && noexcept -> Pipeline<F, std::decay_t<G>> {
            return Pipeline<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
        }
 
        template<class G>
-       constexpr auto operator>>(G &&g) const && noexcept -> Pipeline<F, std::decay_t<G>> {
+       constexpr auto operator|(G &&g) const && noexcept -> Pipeline<F, std::decay_t<G>> {
            return Pipeline<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
        }
    };
@@ -1005,24 +934,24 @@ namespace fff {
        }
 
        template<class G>
-       constexpr auto operator>>(G &&g) const & noexcept
+       constexpr auto operator|(G &&g) const & noexcept
            -> Pipeline<F1, Fp..., std::decay_t<G>>
        {
-           return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 >> std::forward<G>(g)};
+           return Pipeline<F1, Fp..., std::decay_t<G>>{f1, f2 | std::forward<G>(g)};
        }
 
        template<class G>
-       constexpr auto operator>>(G &&g) && noexcept
+       constexpr auto operator|(G &&g) && noexcept
            -> Pipeline<F1, Fp..., std::decay_t<G>>
        {
-           return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
+           return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) | std::forward<G>(g)};
        }
 
        template<class G>
-       constexpr auto operator>>(G &&g) const && noexcept
+       constexpr auto operator|(G &&g) const && noexcept
            -> Pipeline<F1, Fp..., std::decay_t<G>>
        {
-           return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) >> std::forward<G>(g)};
+           return Pipeline<F1, Fp..., std::decay_t<G>>{std::move(f1), std::move(f2) | std::forward<G>(g)};
        }
    };
 
@@ -1043,69 +972,12 @@ namespace fff {
        }
 
        template<class F>
-       constexpr auto operator>>(F &&f) const noexcept
+       constexpr auto operator|(F &&f) const noexcept
            -> Pipeline<std::decay_t<F>>
        {
            return Pipeline<std::decay_t<F>>{std::forward<F>(f)};
        }
    };
-}
-
-/**
-* fff::(Some Unary Operators)
-*/
-
-namespace fff {
-   struct GetAddress {
-       template<typename T>
-       constexpr auto operator()(const T &t) const noexcept -> decltype(&t) {
-           return &t;
-       }
-   };
-
-   inline constexpr GetAddress get_address;
-
-   struct Dereference {
-       template<dereferencible T>
-       constexpr auto operator()(T &&t) const
-           noexcept(noexcept(*t))
-               -> decltype(*t) {
-           return *t;
-       }
-   };
-
-   inline constexpr Dereference dereference;
-
-   struct Negate {
-       template<negatable T>
-       constexpr auto operator()(T &&t) const
-           noexcept(noexcept(!t))
-               -> decltype(!t) {
-           return !t;
-       }
-   };
-
-   inline constexpr Negate negate;
-
-   struct Flip {
-       template<flippable T>
-       constexpr auto operator()(T &&t) const noexcept -> decltype(~t) {
-           return ~t;
-       }
-   };
-
-   inline constexpr Flip flip;
-
-   template<typename T>
-   struct ConvertTo {
-       template<std::convertible_to<T> U>
-       constexpr auto operator()(U &&u) const noexcept -> T {
-           return static_cast<T>(std::forward<U>(u));
-       }
-   };
-
-   template<typename T>
-   inline constexpr ConvertTo<T> convert_to;
 }
 
 

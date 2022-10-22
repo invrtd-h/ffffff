@@ -41,7 +41,7 @@ IndentGotoLabels: true
 IndentRequires: true
 IndentWidth: 4
 IndentWrappedFunctionNames: true
-InsertTrailingCommas: Wrapped
+InsertTrailingCommas: None
 KeepEmptyLinesAtTheStartOfBlocks: false
 LambdaBodyIndentation: Signature
 Language: Cpp
