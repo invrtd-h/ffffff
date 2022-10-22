@@ -1,8 +1,9 @@
 #include <iostream>
 #include <vector>
 
-#include "include/ffffff.hpp"
-#include "include/debug_tools.h"
+#include "ffffff/package.hpp"
+#include "ffffff/overload.hpp"
+#include "ffffff/debug_tools.h"
 
 class Bar {
     friend class fff::AsSingle<Bar>;
@@ -24,25 +25,7 @@ class Foo {
 };
 
 int main() {
-    using fff::Package;
-    
-    Package f;
-    
-    auto h2 = f.pipeline | add<1> | add<3> | multiply<6>;
-    std::cout << h2(5) << '\n';
-    
-    auto g1 = [f](int n) {
-        return f.multi_return(n, n * n);
-    };
-    
-    auto g2 = [](int a, int b) {
-        return a + b;
-    };
-    
-    auto g3 = f.pipeline | g1 | g2;
-    std::cout << g3(4) << '\n';
-    
-    std::cout << sizeof(h2) << ' ' << sizeof(g3) << '\n';
+    fff::Package f;
 
     std::cout << fff::MyClass::created() << '\n';
 
@@ -57,15 +40,5 @@ int main() {
 
     auto l = f.null_lift([]() {std::cout << "Hello\n";});
     l();
-
-    auto r = [](int l, int r) {return l + r;};
-    auto s = fff::static_r_bind<8>(r);
-
-    std::cout << s(4) << '\n';
-
-    auto t = fff::static_r_bind<6, 9>(r);
-    std::cout << t() << '\n';
-
-    std::cout << typeid(t).name() << '\n';
 
 }

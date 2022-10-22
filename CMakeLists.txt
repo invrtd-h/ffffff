@@ -5,4 +5,4 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_compile_options(-fmodules-ts)
 
-add_executable(underscore_cpp main.cpp include/ffffff.hpp include/debug_tools.h include/classify.h include/tmf.hpp include/basic_ops.hpp)
+add_executable(underscore_cpp main.cpp ffffff/package.hpp ffffff/debug_tools.h ffffff/classify.h ffffff/tmf.hpp ffffff/basic_ops.hpp ffffff/interfaces.hpp ffffff/overload.hpp)

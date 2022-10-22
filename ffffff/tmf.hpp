@@ -1,6 +1,10 @@
 #ifndef UNDERSCORE_CPP_TMF_HPP
 #define UNDERSCORE_CPP_TMF_HPP
 
+#include <type_traits>
+#include <concepts>
+#include <tuple>
+
 namespace fff {
 
    struct constexpr_determination {
@@ -54,8 +58,6 @@ namespace fff {
    template<typename T, unsigned int N = 0>
    using value_type_t = decltype(type_at<N>::of(std::declval<T>()));
 
-   static_assert(std::is_same_v<int, value_type_t<std::unordered_map<double, int>, 1>>);
-
    /**
     * A TMP struct that just holds a constexpr variable.
     * @tparam v any, constexpr literals
@@ -86,11 +88,6 @@ namespace fff {
    concept non_type_nested =
        not type_nested<T>;
 
-   static_assert(non_type_nested<int>);
-   static_assert(type_nested<std::vector<int>>);
-   static_assert(type_nested<std::pair<int, int>>);
-   static_assert(non_type_nested<std::array<int, 3>>);
-
    /**
     * A concept determines whether the given C is a unary predicate.
     * @tparam C Any unary type constructor
@@ -99,12 +96,11 @@ namespace fff {
     */
 
    template<template<class> class C>
-   concept unary_pred = requires {
-                            { C<int>::value } -> std::convertible_to<bool>;
-                            constexpr_determination::is_consteval_var(C<int>::value);
-                        };
-
-   static_assert(unary_pred<std::is_class> and not unary_pred<std::vector>);
+   concept unary_pred =
+       requires {
+           { C<int>::value } -> std::convertible_to<bool>;
+           constexpr_determination::is_consteval_var(C<int>::value);
+       };
 
 
 
@@ -161,8 +157,6 @@ namespace fff {
    template<template<class...> class C, typename T>
    using change_template_t = decltype(template_replace<C>::instead_of(std::declval<T>()));
 
-   static_assert(std::is_same_v<std::vector<int>, change_template_t<std::vector, std::optional<int>>>);
-
    /**
     * @see change_value_type_t (just below)
     */
@@ -189,8 +183,6 @@ namespace fff {
    template<template<class> class Pred, typename T = void, typename ...Ts>
    constexpr const inline bool every_type_satisfies_v = every_type_satisfies<Pred, T, Ts...>::value;
 
-   static_assert(not every_type_satisfies_v<std::is_class, std::string, std::vector<int>, double>);
-
 
    template<typename T, template<class, class...> class C>
    concept made_by = std::is_same_v<std::decay_t<T>,
@@ -198,8 +190,6 @@ namespace fff {
 
    template<typename T, template<class, class...> class C>
    concept not_made_by = not made_by<T, C>;
-
-   static_assert(not made_by<std::vector<int>, std::optional>);
 
    /**
     * @see below, the definition of concept unrelated_with
@@ -233,9 +223,6 @@ namespace fff {
 
    template<typename T, template<class> class C>
    concept related_with = not unrelated_with<T, C>;
-
-   static_assert(related_with<std::pair<std::vector<int>, std::pair<int, int>>, std::vector>);
-   static_assert(unrelated_with<std::tuple<int, std::tuple<int, double, int>>, std::vector>);
 
 
    /**
@@ -306,19 +293,22 @@ namespace fff {
    concept flippable = requires (T t) {~t;};
 
    template<template<class> class C>
-   concept backpushable = requires (C<int> cont) {
-                              cont.push_back(0);
-                          };
+   concept backpushable =
+       requires (C<int> cont) {
+           cont.push_back(0);
+       };
 
    template<template<class> class C>
-   concept insertible = requires (C<int> cont) {
-                            cont.insert(0);
-                        };
+   concept insertible =
+       requires (C<int> cont) {
+           cont.insert(0);
+       };
 
    template<typename T>
-   concept maybetype = requires {
-                           T::is_maybe;
-                       };
+   concept maybetype =
+       requires {
+           T::is_maybe;
+       };
 
 
    template<typename T>

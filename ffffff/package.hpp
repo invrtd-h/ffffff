@@ -2,8 +2,8 @@
 * @author Hyegeun Song (Github : invrtd-h)
 */
 
-#ifndef UNDERSCORE_CPP_FFFFFF_HPP
-#define UNDERSCORE_CPP_FFFFFF_HPP
+#ifndef UNDERSCORE_CPP_PACKAGE_HPP
+#define UNDERSCORE_CPP_PACKAGE_HPP
 
 #include <type_traits>
 #include <functional>
@@ -18,6 +18,7 @@
 
 #include "tmf.hpp"
 #include "basic_ops.hpp"
+#include "interfaces.hpp"
 
 namespace fff {
    template<typename ...Ts>
@@ -83,90 +84,6 @@ namespace fff {
         }
     };
 }
-
-namespace fff {
-
-    template<class, class...>
-    struct auto_decl {};
-
-    /**
-     * A CRTP Pattern that gives "operator()" function.\n
-     * To implement "operator()" function, it is sufficient to implement a static 'call_impl' template function.
-     * @example template\<class F> class Foo : callable_i\<F, Foo> { (implements...) }
-     */
-    template<typename F, typename Derived,
-            template<class, class...> class TypeDeduction = auto_decl>
-    class callable_i {
-    public:
-        using function_type = F;
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) &
-            noexcept(noexcept(Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...)))
-                -> typename TypeDeduction<F, Args...>::type
-        {
-            return Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...);
-        }
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) const &
-            noexcept(noexcept(Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...)))
-                -> typename TypeDeduction<F, Args...>::type
-        {
-            return Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...);
-        }
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) &&
-            noexcept(noexcept(Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...)))
-                -> typename TypeDeduction<F, Args...>::type
-        {
-            return Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...);
-        }
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) const &&
-            noexcept(noexcept(Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...)))
-                -> typename TypeDeduction<F, Args...>::type
-        {
-            return Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...);
-        }
-    };
-
-    template<typename F, typename Derived>
-    class callable_i<F, Derived, auto_decl> {
-    public:
-        using function_type = F;
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) &
-            noexcept(noexcept(Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...)))
-        {
-            return Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...);
-        }
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) const &
-            noexcept(noexcept(Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...)))
-        {
-            return Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...);
-        }
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) &&
-            noexcept(noexcept(Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...)))
-        {
-            return Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...);
-        }
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) const &&
-            noexcept(noexcept(Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...)))
-        {
-            return Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...);
-        }
-    };
-};
 
 /**
 * fff::(null_t object class) impl
@@ -577,235 +494,6 @@ namespace fff {
    };
 }
 
-/**
-* fff::If impl
-*/
-namespace fff {
-   template<template<class...> class Pred, class F1, class F2>
-   class If {
-       friend class IfFactory;
-
-       [[no_unique_address]] F1 f1;
-       [[no_unique_address]] F2 f2;
-
-       template<class G1, class G2>
-       constexpr If(G1 &&g1, G2 &&g2) noexcept
-           : f1(std::forward<G1>(g1)), f2(std::forward<G2>(g2)) {}
-   public:
-
-       template<typename ...Args>
-           requires Pred<F1, F2, Args...>::value
-       constexpr auto operator()(Args &&...args) const
-           noexcept(noexcept(std::invoke(f1, std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F1, Args...>
-       {
-           return std::invoke(f1, std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires (not Pred<F1, F2, Args...>::value)
-       constexpr auto operator()(Args &&...args) const
-           noexcept(noexcept(std::invoke(f2, std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F2, Args...>
-       {
-           return std::invoke(f2, std::forward<Args>(args)...);
-       }
-   };
-}
-
-/*
-* fff::Overload impl
-*/
-namespace fff {
-   template<class ...Fp>
-   struct Overload : Fp... {
-       using Fp::operator()...;
-   };
-
-   struct OverloadFactory {
-       template<class ...Fp>
-       constexpr auto operator()(Fp &&...fp) const noexcept
-           -> Overload<std::decay_t<Fp>...>
-       {
-           return {std::forward<Fp>(fp)...};
-       }
-   };
-}
-
-/*
-* fff::Parallel impl
-*/
-
-namespace fff {
-   template<class F, class ...Fp>
-   class Parallel;
-
-   template<class F>
-   class Parallel<F> {
-       friend class ParallelFactory;
-
-       [[no_unique_address]] F f;
-
-   public:
-       constexpr explicit Parallel(const F &f) noexcept : f(f) {}
-       constexpr explicit Parallel(F &&f) noexcept : f(std::move(f)) {}
-
-       template<typename ...Args>
-           requires std::invocable<F, Args...>
-       constexpr auto operator()(Args &&...args) const &
-           noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F, Args...>
-       {
-           return std::invoke(f, std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires std::invocable<F, Args...>
-       constexpr auto operator()(Args &&...args) &&
-           noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F, Args...>
-       {
-           return std::invoke(std::move(f), std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires std::invocable<F, Args...>
-       constexpr auto operator()(Args &&...args) const &&
-           noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F, Args...>
-       {
-           return std::invoke(std::move(f), std::forward<Args>(args)...);
-       }
-
-       template<typename G>
-       constexpr auto make_chain(G &&g) const & noexcept -> Parallel<F, std::decay_t<G>> {
-           return Parallel<F, std::decay_t<G>>{f, std::forward<G>(g)};
-       }
-
-       template<typename G>
-       constexpr auto make_chain(G &&g) && noexcept -> Parallel<F, std::decay_t<G>> {
-           return Parallel<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
-       }
-
-       template<typename G>
-       constexpr auto make_chain(G &&g) const && noexcept -> Parallel<F, std::decay_t<G>> {
-           return Parallel<F, std::decay_t<G>>{std::move(f), std::forward<G>(g)};
-       }
-   };
-
-   template<class F, class ...Fp>
-   class Parallel {
-       friend class ParallelFactory;
-
-       [[no_unique_address]] F f;
-       [[no_unique_address]] Parallel<Fp...> pfp;
-
-   public:
-       template<class U1, class U2>
-       constexpr Parallel(U1 &&f, U2 &&pfp) noexcept
-           : f(std::forward<U1>(f)), pfp(std::forward<U2>(pfp)) {}
-
-       template<typename ...Args>
-           requires std::invocable<F, Args...>
-       constexpr auto operator()(Args &&...args) const &
-           noexcept(noexcept(std::invoke(f, std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F, Args...>
-       {
-           return std::invoke(f, std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires std::invocable<F, Args...>
-       constexpr auto operator()(Args &&...args) &&
-           noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F, Args...>
-       {
-           return std::invoke(std::move(f), std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires std::invocable<F, Args...>
-       constexpr auto operator()(Args &&...args) const &&
-           noexcept(noexcept(std::invoke(std::move(f), std::forward<Args>(args)...)))
-               -> std::invoke_result_t<F, Args...>
-       {
-           return std::invoke(std::move(f), std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires (not std::invocable<F, Args...>
-                    and std::invocable<Parallel<Fp...>, Args...>)
-       constexpr auto operator()(Args &&...args) const &
-           noexcept(noexcept(std::invoke(pfp, std::forward<Args>(args)...)))
-               -> std::invoke_result_t<Parallel<Fp...>, Args...>
-       {
-           return std::invoke(pfp, std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires (not std::invocable<F, Args...>
-                    and std::invocable<Parallel<Fp...>, Args...>)
-       constexpr auto operator()(Args &&...args) &&
-           noexcept(noexcept(std::invoke(std::move(pfp), std::forward<Args>(args)...)))
-               -> std::invoke_result_t<Parallel<Fp...>, Args...>
-       {
-           return std::invoke(std::move(pfp), std::forward<Args>(args)...);
-       }
-
-       template<typename ...Args>
-           requires (not std::invocable<F, Args...>
-                    and std::invocable<Parallel<Fp...>, Args...>)
-       constexpr auto operator()(Args &&...args) const &&
-           noexcept(noexcept(std::invoke(std::move(pfp), std::forward<Args>(args)...)))
-               -> std::invoke_result_t<Parallel<Fp...>, Args...>
-       {
-           return std::invoke(std::move(pfp), std::forward<Args>(args)...);
-       }
-
-       template<typename G>
-       constexpr auto make_chain(G &&g) const & noexcept
-           -> Parallel<F, Fp..., std::decay_t<G>>
-       {
-           return Parallel<F, Fp..., std::decay_t<G>>{f, pfp.make_chain(std::forward<G>(g))};
-       }
-
-       template<typename G>
-       constexpr auto make_chain(G &&g) && noexcept
-           -> Parallel<F, Fp..., std::decay_t<G>>
-       {
-           return Parallel<F, Fp..., std::decay_t<G>>{std::move(f), pfp.make_chain(std::forward<G>(g))};
-       }
-
-       template<typename G>
-       constexpr auto make_chain(G &&g) const && noexcept
-           -> Parallel<F, Fp..., std::decay_t<G>>
-       {
-           return Parallel<F, Fp..., std::decay_t<G>>{std::move(f), pfp.make_chain(std::forward<G>(g))};
-       }
-   };
-
-   struct ParallelFactory {
-       template<class F>
-       constexpr auto operator()(F &&f) const noexcept -> Parallel<std::decay_t<F>>
-       {
-           return Parallel<std::decay_t<F>>(std::forward<F>(f));
-       }
-
-       template<class F, class ...Fp>
-       constexpr auto operator()(F &&f, Fp &&...fp) const noexcept
-           -> Parallel<std::decay_t<F>, std::decay_t<Fp>...>
-       {
-           return Parallel<std::decay_t<F>, std::decay_t<Fp>...>
-               (std::forward<F>(f), operator()(std::forward<Fp>(fp)...));
-       }
-
-       template<typename F>
-       constexpr auto make_chain(F &&f) const noexcept -> Parallel<std::decay_t<F>> {
-           return Parallel<F>{std::forward<F>(f)};
-       }
-   };
-}
-
 /*
 * fff::Pipeline impl
 */
@@ -982,50 +670,6 @@ namespace fff {
 
 
 namespace fff {
-   /**
-    * An interface that offers lift() method. \n
-    * To use this, the derived class should implement lift_impl() method.
-    * @tparam T value-type
-    * @tparam C a type constructor that will offer lift() method
-    */
-   template<typename T, template<class, class...> class C>
-   class Lift_i {
-   public:
-       using Derived = C<T>;
-       using value_type = T;
-
-       template<std::invocable<T> F>
-       constexpr auto lift(F &&f) &
-           noexcept(noexcept(Derived::lift_impl(*static_cast<Derived*>(this), std::forward<F>(f))))
-               -> C<std::invoke_result_t<F, T>>
-       {
-           return Derived::lift_impl(*static_cast<Derived*>(this), std::forward<F>(f));
-       }
-
-       template<std::invocable<T> F>
-       constexpr auto lift(F &&f) const &
-           noexcept(noexcept(Derived::lift_impl(*static_cast<Derived*>(this), std::forward<F>(f))))
-               -> C<std::invoke_result_t<F, T>>
-       {
-           return Derived::lift_impl(*static_cast<Derived*>(this), std::forward<F>(f));
-       }
-
-       template<std::invocable<T> F>
-       constexpr auto lift(F &&f) &&
-           noexcept(noexcept(Derived::lift_impl(std::move(*static_cast<Derived*>(this)), std::forward<F>(f))))
-               -> C<std::invoke_result_t<F, T>>
-       {
-           return Derived::lift_impl(std::move(*static_cast<Derived*>(this)), std::forward<F>(f));
-       }
-
-       template<std::invocable<T> F>
-       constexpr auto lift(F &&f) const &&
-           noexcept(noexcept(Derived::lift_impl(std::move(*static_cast<Derived*>(this)), std::forward<F>(f))))
-               -> C<std::invoke_result_t<F, T>>
-       {
-           return Derived::lift_impl(std::move(*static_cast<Derived*>(this)), std::forward<F>(f));
-       }
-   };
 
    template<typename T, template<class, class...> class C>
    class FlatLift_i {
@@ -1114,7 +758,7 @@ namespace fff {
         * Lift : (T -> U) -> (M<T> -> M<U>)
         * @tparam F function object type
         * @param f function object
-        * @return any On<U> object which holds the value f(t)
+        * @return any On\<U> object which holds the value f(t)
         */
        template<std::invocable<T> F>
        constexpr auto operator>>(F &&f) &
@@ -1492,8 +1136,6 @@ namespace fff {
    inline Stop                     stop;
    inline GoFactory                go;
 
-   inline ParallelFactory          parallel;
-   inline OverloadFactory          overload;
    inline PipelineFactory          pipeline;
 }
 
@@ -1527,8 +1169,6 @@ namespace fff {
        [[no_unique_address]] Stop stop{};
        [[no_unique_address]] GoFactory go{};
 
-       [[no_unique_address]] ParallelFactory parallel{};
-       [[no_unique_address]] OverloadFactory overload{};
        [[no_unique_address]] PipelineFactory pipeline{};
 
        Package() = default;
@@ -1537,5 +1177,4 @@ namespace fff {
 
 static_assert(std::is_empty_v<fff::Package>, "the Package class should be empty");
 
-#endif //UNDERSCORE_CPP_FFFFFF_HPP
-
+#endif//UNDERSCORE_CPP_PACKAGE_HPP

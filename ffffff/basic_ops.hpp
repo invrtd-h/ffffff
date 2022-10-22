@@ -1,6 +1,12 @@
 #ifndef UNDERSCORE_CPP_BASIC_OPS_HPP
 #define UNDERSCORE_CPP_BASIC_OPS_HPP
 
+#include <type_traits>
+#include <functional>
+#include <utility>
+
+#include "tmf.hpp"
+
 /*
 * fff::Identity impl
 */
@@ -12,7 +18,7 @@ namespace fff {
     * @tparam SZ the position to return
     * @cite https://en.cppreference.com/w/cpp/utility/functional/identity
     */
-   template<size_t SZ>
+   template<std::size_t SZ>
    struct IdentityAt {
        /**
         * @tparam T Any-type
@@ -22,7 +28,9 @@ namespace fff {
         * @return std::forward<T>(t)
         */
        template<class T, typename... Args>
-       constexpr auto &&operator()(T &&, Args &&...args) const noexcept {
+       constexpr auto operator()(T &&, Args &&...args) const noexcept
+           -> std::invoke_result_t<IdentityAt<SZ - 1>, Args...>
+       {
            return std::invoke(IdentityAt<SZ - 1>(), std::forward<Args>(args)...);
        }
    };
@@ -54,7 +62,9 @@ namespace fff {
         * @return std::forward<T>(t)
         */
        template<class T, typename ...Args>
-       constexpr auto operator()(T &&, Args &&...args) const noexcept {
+       constexpr auto operator()(T &&, Args &&...args) const noexcept
+       -> std::invoke_result_t<CopyAt<SZ - 1>, Args...>
+       {
            return std::invoke(CopyAt<SZ - 1>(), std::forward<Args>(args)...);
        }
    };

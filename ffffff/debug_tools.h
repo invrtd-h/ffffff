@@ -172,7 +172,7 @@ void parallel_test() {
     
     auto print_str = [](const std::string &s) {std::cout << s << '\n';};
     
-    auto g = f.parallel(
+    auto g = fff::parallel(
             [r](int n) {std::cout << n * 2 + r << '\n';},
             [r](double n) {std::cout << n * 2 + r << '\n';},
             print_str
@@ -184,7 +184,7 @@ void parallel_test() {
     
     std::cout << "The sizeof g is " << sizeof(g) << '\n';
 
-    auto g2 = f.parallel.make_chain([r](int n) {std::cout << n * 2 + r << '\n';})
+    auto g2 = fff::parallel.make_chain([r](int n) {std::cout << n * 2 + r << '\n';})
                   .make_chain([r](double n) {std::cout << n * 2 + r << '\n';})
                   .make_chain(print_str);
 
