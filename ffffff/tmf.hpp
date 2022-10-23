@@ -311,6 +311,16 @@ namespace fff {
         };
 
 
+    struct rvalue_detector_f {
+        template<typename T>
+        constexpr bool operator()(T &&) const noexcept {
+            return not std::is_lvalue_reference_v<T>;
+        }
+    };
+
+    constexpr inline rvalue_detector_f rvalue_detector;
+
+
     template<typename T>
     class TD;
 }

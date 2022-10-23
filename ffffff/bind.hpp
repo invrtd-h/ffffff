@@ -123,6 +123,10 @@ namespace fff {
 
     template<auto ...vp>
     constexpr inline static_r_bind_factory<vp...> static_r_bind;
+
+
+
+
 }
 
 #endif//UNDERSCORE_CPP_BIND_HPP

@@ -85,12 +85,6 @@ auto add_r = [](int &n) -> void {n += N;};
 template<int N>
 auto multiply_r = [](int &n) -> void {n *= N;};
 
-auto foo_factory(int a, int b, int c) {
-    return [a, b, c](int x, int y) {
-        return a + b + c + x + y;
-    };
-}
-
 void pipeop_test() {
     using namespace fff::pipe_op;
 

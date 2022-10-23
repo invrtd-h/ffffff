@@ -69,10 +69,12 @@ namespace fff {
     template<>
     struct CopyAt<0> {
         /**
-        * Template specification of IdentityAt<> (read upward)
+        * Template specification of CopyAt\<> (read upward)
         */
         template<class T, typename ...Args>
-        constexpr std::decay_t<T> operator()(T &&t, Args &&...) const noexcept {
+        constexpr auto operator()(T &&t, Args &&...) const noexcept
+            -> std::decay_t<T>
+        {
             return t;
         }
     };
@@ -83,7 +85,7 @@ namespace fff {
     /**
     * No-operation function obj.
     */
-    struct Noop {
+    struct no_op_f {
         /**
         * No-operation operator().
         * @tparam Args parameter pack of any-types
@@ -93,6 +95,8 @@ namespace fff {
         template<class ...Args>
         constexpr void operator()(Args &&...) const noexcept {}
     };
+
+    constexpr inline no_op_f no_op;
 }
 
 /*
@@ -101,23 +105,21 @@ namespace fff {
 namespace fff {
 
     template<auto v>
-    struct always_constant_f {
+    struct always_f {
         using type = std::decay_t<decltype(v)>;
         constexpr static type value = v;
 
         template<class ...Args>
-        constexpr type operator()(Args &&...) const noexcept {
+        constexpr auto operator()(Args &&...) const noexcept -> type {
             return v;
         }
     };
 
-    using always_true_f = always_constant_f<true>;
-    using always_false_f = always_constant_f<false>;
+    using always_true_f = always_f<true>;
+    using always_false_f = always_f<false>;
 
     constexpr inline always_true_f always_true;
     constexpr inline always_false_f always_false;
-
-    static_assert(std::is_same_v<always_true_f::type, bool>);
 }
 
 /**
@@ -137,36 +139,38 @@ namespace fff {
     struct Dereference {
         template<dereferencible T>
         constexpr auto operator()(T &&t) const
-            noexcept(noexcept(*t))
-                -> decltype(*t) {
-            return *t;
+            noexcept(noexcept(*std::forward<T>(t)))
+                -> decltype(*std::forward<T>(t)) {
+            return *std::forward<T>(t);
         }
     };
 
     inline constexpr Dereference dereference;
 
-    struct Negate {
+    struct negate_f {
         template<negatable T>
         constexpr auto operator()(T &&t) const
-            noexcept(noexcept(!t))
-                -> decltype(!t) {
-            return !t;
+            noexcept(noexcept(!std::forward<T>(t)))
+                -> decltype(!std::forward<T>(t)) {
+            return !std::forward<T>(t);
         }
     };
 
-    inline constexpr Negate negate;
+    inline constexpr negate_f negate;
 
-    struct Flip {
+    struct flip_f {
         template<flippable T>
-        constexpr auto operator()(T &&t) const noexcept -> decltype(~t) {
-            return ~t;
+        constexpr auto operator()(T &&t) const noexcept
+            -> decltype(~std::forward<T>(t))
+        {
+            return ~std::forward<T>(t);
         }
     };
 
-    inline constexpr Flip flip;
+    inline constexpr flip_f flip;
 
     template<typename T>
-    struct ConvertTo {
+    struct convert_to_f {
         template<std::convertible_to<T> U>
         constexpr auto operator()(U &&u) const noexcept -> T {
             return static_cast<T>(std::forward<U>(u));
@@ -174,7 +178,7 @@ namespace fff {
     };
 
     template<typename T>
-    inline constexpr ConvertTo<T> convert_to;
+    inline constexpr convert_to_f<T> convert_to;
 }
 
 #endif //UNDERSCORE_CPP_BASIC_OPS_HPP

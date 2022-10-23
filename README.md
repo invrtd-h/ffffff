@@ -18,7 +18,7 @@ JS의 underscore 라이브러리를 C++로 그대로 구현하는 프로젝트�
 
 * IdentityAt
 * CopyAt
-* Noop
+* no_op_f
 * AlwaysConstant
 
 이름만 봐도 무엇을 하는 함수인지 유추할 수 있습니다!

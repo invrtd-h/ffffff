@@ -1,5 +1,5 @@
-#ifndef UNDERSCORE_CPP_DATAFLOW_HPP
-#define UNDERSCORE_CPP_DATAFLOW_HPP
+#ifndef UNDERSCORE_CPP_FUNCTORS_HPP
+#define UNDERSCORE_CPP_FUNCTORS_HPP
 
 #include <functional>
 #include <algorithm>
@@ -217,4 +217,4 @@ namespace fff {
     constexpr inline None none;
 }
 
-#endif//UNDERSCORE_CPP_DATAFLOW_HPP
+#endif//UNDERSCORE_CPP_FUNCTORS_HPP
