@@ -257,6 +257,16 @@ namespace fff {
 
 
 
+    template<template<class...> class Pred, typename ...Ts>
+    struct satisfying_type {
+        constexpr static bool value = Pred<Ts...>::value;
+    };
+
+    template<template<class...> class Pred, typename ...Ts>
+    constexpr inline bool satisfying_type_v = Pred<Ts...>::value;
+
+
+
     template<typename T, template<class> class C>
     concept derived_as_crtp = std::derived_from<T, C<T>>;
 
@@ -309,7 +319,6 @@ namespace fff {
         requires {
             T::is_maybe;
         };
-
 
     struct rvalue_detector_f {
         template<typename T>

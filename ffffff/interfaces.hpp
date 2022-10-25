@@ -11,21 +11,16 @@ namespace fff {
     /**
      * A CRTP Pattern that gives "operator()" function.\n
      * To implement "operator()" function, it is sufficient to implement a static 'call_impl' template function.
-     * @example template\<class F> class Foo : callable_i\<F, Foo> { (implements...) }
+     * @example template\<class F> class Foo : callable_i\<F, Foo\<F>, std::invoke_result> { (implements...) }
+     * @tparam F function argument type of the derived type, Derived::function_type
+     * @tparam Derived Self
+     * @tparam TypeDeduction (optional) A TMP guideline that tells compilers about the return type
      */
     template<typename F, typename Derived,
              template<class, class...> class TypeDeduction = auto_decl>
     class callable_i {
     public:
         using function_type = F;
-
-        template<typename ...Args>
-        constexpr auto operator()(Args &&...args) &
-            noexcept(noexcept(Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...)))
-                -> typename TypeDeduction<F, Args...>::type
-        {
-            return Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...);
-        }
 
         template<typename ...Args>
         constexpr auto operator()(Args &&...args) const &
@@ -49,6 +44,14 @@ namespace fff {
                 -> typename TypeDeduction<F, Args...>::type
         {
             return Derived::call_impl(std::move(*static_cast<Derived*>(this)), std::forward<Args>(args)...);
+        }
+
+        template<typename ...Args>
+        constexpr auto operator()(Args &&...args) &
+            noexcept(noexcept(Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...)))
+                -> typename TypeDeduction<F, Args...>::type
+        {
+            return Derived::call_impl(*static_cast<Derived*>(this), std::forward<Args>(args)...);
         }
     };
 

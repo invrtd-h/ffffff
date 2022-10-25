@@ -72,7 +72,7 @@ namespace fff {
 
 
 /*
-* fff::Once impl
+* fff::Once reducible_TD
 */
 namespace fff {
 
@@ -144,12 +144,14 @@ namespace fff {
         friend callable_i<F, once_f<F>, std::invoke_result>;
         friend class once_factory;
 
-        [[no_unique_address]] F                                 f;
-        [[no_unique_address]] mutable std::invoke_result_t<F>   memo;
-        mutable bool                                            flag;
+        [[no_unique_address]]   F                                   f;
+        [[no_unique_address]]   mutable std::invoke_result_t<F>     memo;
+                                mutable bool                        flag;
 
-        constexpr explicit once_f(const F &f) noexcept : f(f), flag(false) {}
-        constexpr explicit once_f(F &&f) noexcept : f(std::move(f)), flag(false) {}
+        constexpr explicit once_f(const F &f) noexcept
+            : f(f),             flag(false) {}
+        constexpr explicit once_f(F &&f) noexcept
+            : f(std::move(f)),  flag(false) {}
 
         template<similar<once_f<F>> Self>
         constexpr static auto call_impl(Self &&self)
@@ -157,19 +159,16 @@ namespace fff {
                 -> std::invoke_result_t<F>
         {
             if constexpr (debug) {
-                std::cout << (rvalue_detector(std::forward<Self>(self)) ? "Rvalue called!\n" : "Lvalue called!\n");
+                std::cout << (not std::is_lvalue_reference_v<Self> ? "Rvalue called!\n" : "Lvalue called!\n");
+                std::cout << (not std::is_lvalue_reference_v<decltype((std::forward<Self>(self).f))>
+                    ? "Rvalue caught!\n" : "Lvalue caught!\n");
             }
             if (self.flag) {
                 return self.memo;
             }
             self.flag = true;
-            return self.memo = std::invoke(std::forward<Self>(self).f_fwd());
+            return self.memo = std::invoke(std::forward<Self>(self).f);
         }
-
-        constexpr       F &  f_fwd()       &  noexcept {return f;}
-        constexpr const F &  f_fwd() const &  noexcept {return f;}
-        constexpr       F && f_fwd()       && noexcept {return std::move(f);}
-        constexpr const F && f_fwd() const && noexcept {return std::move(f);}
 
         constexpr static bool debug = true;
     };
@@ -186,7 +185,7 @@ namespace fff {
     constexpr inline once_factory once;
 }
 
-/* fff::Count impl */
+/* fff::Count reducible_TD */
 namespace fff {
 
     template<class F>
@@ -225,7 +224,7 @@ namespace fff {
 }
 
 /*
-* fff::Fly impl
+* fff::Fly reducible_TD
 */
 namespace fff {
     template<class F>

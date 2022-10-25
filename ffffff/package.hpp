@@ -13,6 +13,7 @@
 #include "multireturn.hpp"
 #include "overload.hpp"
 #include "pipeline.hpp"
+#include "reducible.hpp"
 #include "tmf.hpp"
 #include "utils.hpp"
 

@@ -4,6 +4,7 @@
 #include "ffffff/utils.hpp"
 
 #include "ffffff/bind.hpp"
+#include "ffffff/tmf.hpp"
 
 #include "tu_1.h"
 
@@ -27,6 +28,7 @@ class Foo {
 };
 
 int main() {
+
     pipeop_test();
 
     auto plus = [](int a, int b) {return a + b;};
@@ -40,7 +42,9 @@ int main() {
     int zz = 1;
     auto vvv = std::bind(plus, zz, std::placeholders::_1);
 
-    static_assert(sizeof(vvv) == 8);
+    auto xxx = std::bind_front(plus, 6, 2);
+
+    static_assert(sizeof(vvv) == 8 and sizeof(xxx) == 12);
 
     test1();
 

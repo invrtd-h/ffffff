@@ -100,7 +100,7 @@ namespace fff {
 }
 
 /*
-* fff::AlwaysConstant impl
+* fff::AlwaysConstant reducible_TD
 */
 namespace fff {
 

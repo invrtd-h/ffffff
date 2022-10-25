@@ -38,15 +38,10 @@ namespace fff {
             noexcept(std::is_nothrow_invocable_v<F, const typename ValueHolders::type &..., Args...>)
                 -> std::invoke_result_t<F, const typename ValueHolders::type &..., Args...>
         {
-            return std::invoke(std::forward<Self>(self).f_fwd(),
+            return std::invoke(std::forward<Self>(self).f,
                                ValueHolders::value...,
                                std::forward<Args>(args)...);
         }
-
-        constexpr       F &  f_fwd()       &  noexcept {return f;}
-        constexpr const F &  f_fwd() const &  noexcept {return f;}
-        constexpr       F && f_fwd()       && noexcept {return std::move(f);}
-        constexpr const F && f_fwd() const && noexcept {return std::move(f);}
 
     public:
         using function_type = F;
@@ -97,15 +92,10 @@ namespace fff {
             noexcept(std::is_nothrow_invocable_v<F, Args..., const typename ValueHolders::type &...>)
                 -> std::invoke_result_t<F, Args..., const typename ValueHolders::type &...>
         {
-            return std::invoke(std::forward<Self>(self).f_fwd(),
+            return std::invoke(std::forward<Self>(self).f,
                                std::forward<Args>(args)...,
                                ValueHolders::value...);
         }
-
-        constexpr       F &  f_fwd()       &  noexcept {return f;}
-        constexpr const F &  f_fwd() const &  noexcept {return f;}
-        constexpr       F && f_fwd()       && noexcept {return std::move(f);}
-        constexpr const F && f_fwd() const && noexcept {return std::move(f);}
 
     public:
         using function_type = F;
@@ -123,10 +113,22 @@ namespace fff {
 
     template<auto ...vp>
     constexpr inline static_r_bind_factory<vp...> static_r_bind;
+}
 
 
+namespace fff {
+
+    template<typename F, typename ...Args>
+    class l_bind_f {
+        [[no_unique_address]] F f;
+        [[no_unique_address]] std::tuple<Args...> args;
+
+        template<std::convertible_to<F> G, typename ...Brgs>
+        constexpr explicit l_bind_f(G &&g, Brgs &&...brgs)
+            : F(std::forward<G>(g)), args(std::make_tuple(std::forward<Brgs>(brgs)...)) {}
 
 
+    };
 }
 
 #endif//UNDERSCORE_CPP_BIND_HPP

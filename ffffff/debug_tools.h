@@ -2,6 +2,7 @@
 #define UNDERSCORE_CPP_DEBUG_TOOLS_H
 
 #include "pipeline.hpp"
+#include <iostream>
 
 class ForwardingTester {
 public:
@@ -45,6 +46,8 @@ public:
     ForwardingTester self() && {
         return std::move(*this);
     }
+
+    void operator()(int, int, int) {}
 };
 
 template<class Cont>
@@ -85,7 +88,7 @@ auto add_r = [](int &n) -> void {n += N;};
 template<int N>
 auto multiply_r = [](int &n) -> void {n *= N;};
 
-void pipeop_test() {
+inline void pipeop_test() {
     using namespace fff::pipe_op;
 
     auto x = 1 | [](int n) {return 2 * n;} | [](int n) {return 3 + n;};
