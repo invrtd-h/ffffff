@@ -3,7 +3,7 @@
 
 #include <functional>
 
-#include "multireturn.hpp"
+#include "multiargs.hpp"
 
 namespace fff {
 
@@ -186,7 +186,7 @@ namespace fff::pipe_op {
         return std::invoke(std::forward<F>(f), std::forward<T>(t));
     }
 
-    template<mr T, appliable<T> F>
+    template<mr T, applicable<T> F>
     constexpr auto operator|(T &&t, F &&f)
         noexcept(noexcept(std::apply(std::forward<F>(f), std::forward<T>(t).to_tuple())))
             -> apply_as_mr_result_t<F, T>

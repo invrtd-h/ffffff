@@ -6,7 +6,7 @@
 #include <utility>
 
 /*
-* fff::Overload reducible_TD
+* fff::Overload Reducible_TD
 */
 namespace fff {
     template<class ...Fp>
@@ -25,7 +25,7 @@ namespace fff {
 }
 
 /*
-* fff::Parallel reducible_TD
+* fff::Parallel Reducible_TD
 */
 
 namespace fff {

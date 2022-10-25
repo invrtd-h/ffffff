@@ -22,5 +22,9 @@ void test1() {
 
     auto h = fff::reducible([](int a, int b) {return a + b;});
     std::cout << h(1, 2, 3, 4, 5, 6) << '\n';
+
+    std::cout << fff::l_call_r_invoke(h, std::make_tuple(1, 2, 3), 4, 5, 16) << '\n';
+
+
 }
 

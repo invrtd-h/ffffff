@@ -36,27 +36,29 @@ namespace fff {
         struct among_impl<0, T, U...> {
             using type = T;
         };
+
+        template<typename ...T>
+        struct among {
+            template<unsigned int N>
+            using get = typename liated::among_impl<N, T...>::type;
+        };
+
+        static_assert(std::is_same_v<int, among<char, double, int>::get<2>>);
     }
 
-   template<typename ...T>
-    struct among {
-        template<unsigned int N>
-        using get = typename liated::among_impl<N, T...>::type;
-    };
-
-    static_assert(std::is_same_v<int, among<char, double, int>::get<2>>);
-
     template<unsigned int N, typename ...T>
-    using nth_among = typename among<T...>::template get<N>;
+    using nth_among = typename liated::among<T...>::template get<N>;
 
-    template<unsigned int N>
-    struct type_at {
-        template<template<class, class...> class C, typename T, typename ...U>
-        constexpr static auto of(C<T, U...>) noexcept -> nth_among<N, T, U...>;
-    };
+    namespace liated {
+        template<unsigned int N>
+        struct type_at {
+            template<template<class, class...> class C, typename T, typename ...U>
+            constexpr static auto of(C<T, U...>) noexcept -> nth_among<N, T, U...>;
+        };
+    }
 
     template<typename T, unsigned int N = 0>
-    using value_type_t = decltype(type_at<N>::of(std::declval<T>()));
+    using value_type_t = decltype(liated::type_at<N>::of(std::declval<T>()));
 
     /**
     * A TMP struct that just holds a constexpr variable.
@@ -81,12 +83,14 @@ namespace fff {
     template<typename T>
     concept type_nested =
         requires {
-            type_at<0>::of(std::declval<T>());
+            typename value_type_t<T, 0>;
         };
 
     template<typename T>
     concept non_type_nested =
         not type_nested<T>;
+
+    static_assert(type_nested<std::vector<int>> and non_type_nested<std::array<int, 3>>);
 
     /**
     * A concept determines whether the given C is a unary predicate.
@@ -141,37 +145,39 @@ namespace fff {
         constexpr static const bool value = C<type>::value;
     };
 
-    /**
-    * @see change_template_t (just below)
-    */
-    template<template<class...> class C>
-    struct template_replace {
-        template<template<class...> class D, typename ...T>
-        constexpr static auto instead_of(D<T...>) noexcept -> C<T...>;
-    };
+    namespace liated {
+        /**
+         * @see change_template_t (just below)
+         */
+        template<template<class...> class C>
+        struct template_replace {
+            template<template<class...> class D, typename ...T>
+            constexpr static auto instead_of(D<T...>) noexcept -> C<T...>;
+        };
+
+        /**
+         * @see change_value_type_t (just below)
+         */
+        template<typename T>
+        struct value_type_replace {
+            template<template<class, class...> class C, typename U>
+            constexpr static auto instead_of(C<U>) noexcept -> C<T>;
+        };
+    }
 
     /**
     * change_template_t\<C, D\<T>> = C\<T>
     * @example change_template_t\<std::vector, std::optional\<int>> == std::vector\<int>
     */
     template<template<class...> class C, typename T>
-    using change_template_t = decltype(template_replace<C>::instead_of(std::declval<T>()));
-
-    /**
-    * @see change_value_type_t (just below)
-    */
-    template<typename T>
-    struct value_type_replace {
-        template<template<class, class...> class C, typename U>
-        constexpr static auto instead_of(C<U>) noexcept -> C<T>;
-    };
+    using change_template_t = decltype(liated::template_replace<C>::instead_of(std::declval<T>()));
 
     /**
     * change_template_type_t\<T, C\<U>> == C\<T>
     * @example change_template_type_t\<int, std::vector\<double>> == std::vector\<int>
     */
     template<typename T, type_nested U>
-    using change_value_type_t = decltype(value_type_replace<T>::instead_of(std::declval<U>()));
+    using change_value_type_t = decltype(liated::value_type_replace<T>::instead_of(std::declval<U>()));
 
     template<template<class> class Pred, typename T = void, typename ...Ts>
         requires unary_pred<Pred>
@@ -191,27 +197,30 @@ namespace fff {
     template<typename T, template<class, class...> class C>
     concept not_made_by = not made_by<T, C>;
 
-    /**
-    * @see below, the definition of concept unrelated_with
-    */
-    template<template<class> class C>
-    struct is_unrelated_with_impl {
 
-        template<typename T>
-        struct is_unrelated_with : std::true_type {};
-
+    namespace liated {
         /**
-        * If T is not "type_nested" type, then T is unrelated with C.\n
-        * If T is "type_nested" type, say, T = D\<T1, T2, ..., Tp>, then T is unrelated with C IFF (T1 is unrelated with C and T2 is unrelated with C and ... Tp is unrelated with C).
-        * @tparam T any
-        */
-        template<type_nested T>
-        struct is_unrelated_with<T> {
-            using TypeMove = change_template_t<temp_type_holder, T>;
-            constexpr static bool value =
-                (not made_by<T, C> and TypeMove::template value<is_unrelated_with>);
+         * @see below, the definition of concept unrelated_with
+         */
+        template<template<class> class C>
+        struct is_unrelated_with_impl {
+
+            template<typename T>
+            struct is_unrelated_with : std::true_type {};
+
+            /**
+             * If T is not "type_nested" type, then T is unrelated with C.\n
+             * If T is "type_nested" type, say, T = D\<T1, T2, ..., Tp>, then T is unrelated with C IFF (T1 is unrelated with C and T2 is unrelated with C and ... Tp is unrelated with C).
+             * @tparam T any
+             */
+            template<type_nested T>
+            struct is_unrelated_with<T> {
+                using TypeMove = change_template_t<temp_type_holder, T>;
+                constexpr static bool value =
+                    (not made_by<T, C> and TypeMove::template value<is_unrelated_with>);
+            };
         };
-    };
+    }
 
     /**
     * determines whether every sub-types of T is "unrelated_with" C. This process is recursive.
@@ -219,31 +228,14 @@ namespace fff {
     * @tparam C any unary type constructor
     */
     template<typename T, template<class> class C>
-    concept unrelated_with = is_unrelated_with_impl<C>::template is_unrelated_with<T>::value;
+    concept unrelated_with = liated::is_unrelated_with_impl<C>::template is_unrelated_with<T>::value;
 
     template<typename T, template<class> class C>
     concept related_with = not unrelated_with<T, C>;
 
 
     /**
-    * @see apply_result_t (just below)
-    */
-    struct declapply_impl {
-        template<typename F, typename ...Ts>
-        constexpr static auto declapply(F &&f, const std::tuple<Ts...> &tts) noexcept
-            -> std::invoke_result_t<F, Ts...>;
-    };
-
-    /**
-    * the "apply" version of std::invoke_result_t.
-    * @tparam F function type
-    * @tparam Ts function argument type param pack
-    */
-    template<typename F, typename ...Ts>
-    using apply_result_t = decltype(declapply_impl::declapply(std::declval<F>(), std::declval<std::tuple<Ts...>>()));
-
-    /**
-    * determines whether the decayed versions of T and U are similar type
+    * determines whether the decayed versions of T and U are same type
     * @tparam T, U any
     */
     template<typename T, typename U>
@@ -320,14 +312,16 @@ namespace fff {
             T::is_maybe;
         };
 
-    struct rvalue_detector_f {
-        template<typename T>
-        constexpr bool operator()(T &&) const noexcept {
-            return not std::is_lvalue_reference_v<T>;
-        }
-    };
+    namespace fs {
+        struct rvalue_detector_f {
+            template<typename T>
+            constexpr bool operator()(T &&) const noexcept {
+                return not std::is_lvalue_reference_v<T>;
+            }
+        };
+    }
 
-    constexpr inline rvalue_detector_f rvalue_detector;
+    constexpr inline fs::rvalue_detector_f rvalue_detector;
 
 
     template<typename T>

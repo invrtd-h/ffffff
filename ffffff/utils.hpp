@@ -9,6 +9,12 @@
 #include "interfaces.hpp"
 #include "tmf.hpp"
 
+namespace fff::factory {
+    class NL;
+    class Count;
+    class Once;
+}
+
 namespace fff {
 
     /**
@@ -25,135 +31,74 @@ namespace fff {
     template<typename T>
     using null_or_t = std::conditional_t<std::is_void_v<T>, null_t, T>;
 
-    template<typename F, typename ...Args>
-    struct NullLifted_TD_Impl {
-        using type = null_or_t<std::invoke_result_t<F, Args...>>;
-    };
+    namespace liated {
+        template<typename F, typename ...Args>
+        struct NullLifted_TD_Impl {
+            using type = null_or_t<std::invoke_result_t<F, Args...>>;
+        };
+    }
 
     template<class F>
-    class NullLifted : public callable_i<F, NullLifted<F>, NullLifted_TD_Impl> {
-        friend callable_i<F, NullLifted, NullLifted_TD_Impl>;
-        friend class NullLiftFactory;
+    class NullLifted_f : public callable_i<F, NullLifted_f<F>, liated::NullLifted_TD_Impl> {
+        friend callable_i<F, NullLifted_f, liated::NullLifted_TD_Impl>;
+        friend class factory::NL;
 
         [[no_unique_address]] F f;
 
-        constexpr explicit NullLifted(const F &f) noexcept : f(f) {}
-        constexpr explicit NullLifted(F &&f) noexcept : f(std::move(f)) {}
+        constexpr explicit NullLifted_f(const F &f) noexcept : f(f) {}
+        constexpr explicit NullLifted_f(F &&f) noexcept : f(std::move(f)) {}
 
-        template<similar<NullLifted> Self, typename ...Args>
+        template<similar<NullLifted_f> Self, typename ...Args>
         constexpr static auto call_impl(Self &&self, Args &&...args)
-            noexcept(noexcept(std::invoke(std::forward<Self>(self).f_fwd(), std::forward<Args>(args)...)))
+            noexcept(noexcept(std::invoke(std::forward<Self>(self).f, std::forward<Args>(args)...)))
                 -> null_or_t<std::invoke_result_t<F, Args...>>
         {
             if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>) {
-                std::invoke(std::forward<Self>(self).f_fwd(), std::forward<Args>(args)...);
+                std::invoke(std::forward<Self>(self).f, std::forward<Args>(args)...);
                 return null_t{};
             } else {
-                return std::invoke(std::forward<Self>(self).f_fwd(), std::forward<Args>(args)...);
+                return std::invoke(std::forward<Self>(self).f, std::forward<Args>(args)...);
             }
         }
-
-        constexpr       F &  f_fwd()       &  noexcept {return f;}
-        constexpr const F &  f_fwd() const &  noexcept {return f;}
-        constexpr       F && f_fwd()       && noexcept {return std::move(f);}
-        constexpr const F && f_fwd() const && noexcept {return std::move(f);}
     };
 
-    struct NullLiftFactory {
-        template<typename F>
-        constexpr auto operator()(F &&f) const noexcept -> NullLifted<F> {
-            return NullLifted<F>{std::forward<F>(f)};
-        }
-    };
+    namespace factory {
+        struct NL {
+            template<typename F>
+            constexpr auto operator()(F &&f) const noexcept -> NullLifted_f<F> {
+                return NullLifted_f<F>{std::forward<F>(f)};
+            }
+        };
+    }
 
-    constexpr inline NullLiftFactory null_lift;
+    constexpr inline factory::NL null_lift;
 
 }
 
 
 /*
-* fff::Once reducible_TD
+* fff::Once Reducible_TD
 */
 namespace fff {
 
-    template<class F>
-    class Once;
-
-    template<class F>
-        requires (not std::is_void_v<std::invoke_result_t<F>>)
-    class Once<F> {
-        friend class OnceFactory;
-
-        [[no_unique_address]] F f;
-        mutable std::invoke_result_t<F> memo;
-        mutable bool flag;
-
-        constexpr explicit Once(const F &f) noexcept : f(f), flag(false) {}
-        constexpr explicit Once(F &&f) noexcept : f(std::move(f)), flag(false) {}
-
-    public:
-        constexpr auto operator()() const
-            noexcept(noexcept(std::invoke(f)))
-                -> std::invoke_result_t<F>
-        {
-            if (flag) {
-                return memo;
-            }
-            flag = true;
-            return memo = std::invoke(f);
-        }
-    };
-
-    template<class F>
-        requires std::is_void_v<std::invoke_result_t<F>>
-    class Once<F> {
-        friend class OnceFactory;
-
-        [[no_unique_address]] F f;
-        mutable bool flag;
-
-        constexpr explicit Once(const F &f) noexcept : f(f), flag(false) {}
-        constexpr explicit Once(F &&f) noexcept : f(std::move(f)), flag(false) {}
-
-    public:
-        constexpr void operator()() const
-            noexcept(noexcept(std::invoke(f)))
-        {
-            if (flag) {
-                return;
-            }
-            flag = true;
-            std::invoke(f);
-        }
-    };
-
-    struct OnceFactory {
-        template<std::invocable F>
-        constexpr auto operator()(F &&f) noexcept
-            -> Once<std::decay_t<F>>
-        {
-            return Once<std::decay_t<F>>{std::forward<F>(f)};
-        }
-    };
-
     template<typename F>
-    class once_f;
+    class Once_f;
 
     template<nonvoid_invocable F>
-    class once_f<F> : public callable_i<F, once_f<F>, std::invoke_result> {
-        friend callable_i<F, once_f<F>, std::invoke_result>;
-        friend class once_factory;
+    class Once_f<F> : public callable_i<F, Once_f<F>, std::invoke_result> {
+        friend callable_i<F, Once_f<F>, std::invoke_result>;
+        friend factory::Once;
 
         [[no_unique_address]]   F                                   f;
         [[no_unique_address]]   mutable std::invoke_result_t<F>     memo;
                                 mutable bool                        flag;
 
-        constexpr explicit once_f(const F &f) noexcept
+        constexpr explicit Once_f(const F &f) noexcept
             : f(f),             flag(false) {}
-        constexpr explicit once_f(F &&f) noexcept
+        constexpr explicit Once_f(F &&f) noexcept
             : f(std::move(f)),  flag(false) {}
 
-        template<similar<once_f<F>> Self>
+        template<similar<Once_f<F>> Self>
         constexpr static auto call_impl(Self &&self)
             noexcept(std::is_nothrow_invocable_v<F>)
                 -> std::invoke_result_t<F>
@@ -173,30 +118,32 @@ namespace fff {
         constexpr static bool debug = true;
     };
 
-    struct once_factory {
-        template<std::invocable F>
-        constexpr auto operator()(F &&f) const noexcept
-            -> once_f<std::decay_t<F>>
-        {
-            return once_f<std::decay_t<F>>{std::forward<F>(f)};
-        }
-    };
+    namespace factory {
+        struct Once {
+            template<std::invocable F>
+            constexpr auto operator()(F &&f) const noexcept
+                -> Once_f<std::decay_t<F>>
+            {
+                return Once_f<std::decay_t<F>>{std::forward<F>(f)};
+            }
+        };
+    }
 
-    constexpr inline once_factory once;
+    constexpr inline factory::Once once;
 }
 
-/* fff::Count reducible_TD */
+/* fff::Count_f Reducible_TD */
 namespace fff {
 
     template<class F>
-    class Count {
+    class Count_f {
         friend class CountFactory;
 
         [[no_unique_address]] F f;
         mutable int cnt;
 
-        constexpr explicit Count(const F &f) noexcept : f(f), cnt(0) {}
-        constexpr explicit Count(F &&f) noexcept : f(std::move(f)), cnt(0) {}
+        constexpr explicit Count_f(const F &f) noexcept : f(f), cnt(0) {}
+        constexpr explicit Count_f(F &&f) noexcept : f(std::move(f)), cnt(0) {}
 
     public:
         template<class ...Args>
@@ -213,18 +160,22 @@ namespace fff {
         }
     };
 
-    struct CountFactory {
-        template<class F>
-        constexpr auto operator()(F &&f) const noexcept
-            -> Count<F>
-        {
-            return Count<F>(std::forward<F>(f));
-        }
-    };
+    namespace factory {
+        struct Count {
+            template<class F>
+            constexpr auto operator()(F &&f) const noexcept
+                -> Count_f<F>
+            {
+                return Count_f<F>(std::forward<F>(f));
+            }
+        };
+    }
+
+    constexpr inline factory::Count count;
 }
 
 /*
-* fff::Fly reducible_TD
+* fff::Fly Reducible_TD
 */
 namespace fff {
     template<class F>

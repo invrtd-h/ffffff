@@ -10,7 +10,7 @@
 #include "functors.hpp"
 #include "interfaces.hpp"
 #include "monads.hpp"
-#include "multireturn.hpp"
+#include "multiargs.hpp"
 #include "overload.hpp"
 #include "pipeline.hpp"
 #include "reducible.hpp"

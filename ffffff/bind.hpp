@@ -3,36 +3,40 @@
 
 #include <functional>
 
-#include "tmf.hpp"
 #include "interfaces.hpp"
+#include "multiargs.hpp"
+#include "tmf.hpp"
 
 namespace fff {
 
-    template<class_as_value ...ValueHolders>
-    struct static_l_bind_TD_impl {
-        template<typename F, typename ...Args>
-        struct inner {
-            using type = std::invoke_result_t<F, const typename ValueHolders::type &..., Args...>;
+    namespace liated {
+
+        template<class_as_value ...ValueHolders>
+        struct static_l_bind_TD_impl {
+            template<typename F, typename ...Args>
+            struct inner {
+                using type = std::invoke_result_t<F, const typename ValueHolders::type &..., Args...>;
+            };
         };
-    };
+    }
 
     template<typename F, class_as_value ...ValueHolders>
-    class static_l_bind_f
-        : public callable_i<F, static_l_bind_f<F, ValueHolders...>,
-                            static_l_bind_TD_impl<ValueHolders...>::template inner> {
+    class Static_L_Bind_f
+        : public callable_i<F, Static_L_Bind_f<F, ValueHolders...>,
+                            liated::static_l_bind_TD_impl<ValueHolders...>::template inner> {
 
         template<auto ...vp>
-        friend class static_l_bind_factory;
+        friend class StaticLBindFactory;
 
-        friend callable_i<F, static_l_bind_f<F, ValueHolders...>,
-                          static_l_bind_TD_impl<ValueHolders...>::template inner>;
+        friend callable_i<F, Static_L_Bind_f<F, ValueHolders...>,
+                          liated::static_l_bind_TD_impl<ValueHolders...>::template inner>;
 
         [[no_unique_address]] F f;
 
-        constexpr explicit static_l_bind_f(const F &f) noexcept : f(f) {}
-        constexpr explicit static_l_bind_f(F &&f) noexcept : f(std::move(f)) {}
+        constexpr explicit Static_L_Bind_f(const F &f) noexcept : f(f) {}
+        constexpr explicit Static_L_Bind_f(F &&f) noexcept : f(std::move(f)) {}
 
-        template<similar<static_l_bind_f> Self, typename ...Args>
+        template<similar<Static_L_Bind_f> Self, typename ...Args>
             requires std::invocable<F, const typename ValueHolders::type &..., Args...>
         constexpr static auto call_impl(Self &&self, Args &&...args)
             noexcept(std::is_nothrow_invocable_v<F, const typename ValueHolders::type &..., Args...>)
@@ -48,45 +52,48 @@ namespace fff {
     };
 
     template<auto ...vp>
-    struct static_l_bind_factory {
+    struct StaticLBindFactory {
         template<class F>
         constexpr auto operator()(F &&f) const noexcept
-            -> static_l_bind_f<std::decay_t<F>, value_holder<vp>...>
+            -> Static_L_Bind_f<std::decay_t<F>, value_holder<vp>...>
         {
-            return static_l_bind_f<std::decay_t<F>, value_holder<vp>...>{std::forward<F>(f)};
+            return Static_L_Bind_f<std::decay_t<F>, value_holder<vp>...>{std::forward<F>(f)};
         }
     };
 
     template<auto ...vp>
-    constexpr inline static_l_bind_factory<vp...> static_l_bind;
+    constexpr inline StaticLBindFactory<vp...> static_l_bind;
 
 
 
-    template<class_as_value ...ValueHolders>
-    struct static_r_bind_TD_impl {
-        template<typename F, typename ...Args>
-        struct inner {
-            using type = std::invoke_result_t<F, Args..., const typename ValueHolders::type &...>;
+    namespace liated {
+
+        template<class_as_value ...ValueHolders>
+        struct static_r_bind_TD_impl {
+            template<typename F, typename ...Args>
+            struct inner {
+                using type = std::invoke_result_t<F, Args..., const typename ValueHolders::type &...>;
+            };
         };
-    };
+    }
 
     template<typename F, class_as_value ...ValueHolders>
-    class static_r_bind_f
-        : public callable_i<F, static_r_bind_f<F, ValueHolders...>,
-                            static_r_bind_TD_impl<ValueHolders...>::template inner> {
+    class Static_R_Bind_f
+        : public callable_i<F, Static_R_Bind_f<F, ValueHolders...>,
+                            liated::static_r_bind_TD_impl<ValueHolders...>::template inner> {
 
         template<auto ...vp>
-        friend class static_r_bind_factory;
+        friend class StaticRBindFactory;
 
-        friend callable_i<F, static_r_bind_f<F, ValueHolders...>,
-                          static_r_bind_TD_impl<ValueHolders...>::template inner>;
+        friend callable_i<F, Static_R_Bind_f<F, ValueHolders...>,
+                          liated::static_r_bind_TD_impl<ValueHolders...>::template inner>;
 
         [[no_unique_address]] F f;
 
-        constexpr explicit static_r_bind_f(const F &f) noexcept : f(f) {}
-        constexpr explicit static_r_bind_f(F &&f) noexcept : f(std::move(f)) {}
+        constexpr explicit Static_R_Bind_f(const F &f) noexcept : f(f) {}
+        constexpr explicit Static_R_Bind_f(F &&f) noexcept : f(std::move(f)) {}
 
-        template<similar<static_r_bind_f> Self, typename ...Args>
+        template<similar<Static_R_Bind_f> Self, typename ...Args>
             requires std::invocable<F, Args..., const typename ValueHolders::type &...>
         constexpr static auto call_impl(Self &&self, Args &&...args)
             noexcept(std::is_nothrow_invocable_v<F, Args..., const typename ValueHolders::type &...>)
@@ -102,29 +109,29 @@ namespace fff {
     };
 
     template<auto ...vp>
-    struct static_r_bind_factory {
+    struct StaticRBindFactory {
         template<class F>
         constexpr auto operator()(F &&f) const noexcept
-            -> static_r_bind_f<std::decay_t<F>, value_holder<vp>...>
+            -> Static_R_Bind_f<std::decay_t<F>, value_holder<vp>...>
         {
-            return static_r_bind_f<std::decay_t<F>, value_holder<vp>...>{std::forward<F>(f)};
+            return Static_R_Bind_f<std::decay_t<F>, value_holder<vp>...>{std::forward<F>(f)};
         }
     };
 
     template<auto ...vp>
-    constexpr inline static_r_bind_factory<vp...> static_r_bind;
+    constexpr inline StaticRBindFactory<vp...> static_r_bind;
 }
 
 
 namespace fff {
 
     template<typename F, typename ...Args>
-    class l_bind_f {
+    class L_Bind_f {
         [[no_unique_address]] F f;
         [[no_unique_address]] std::tuple<Args...> args;
 
         template<std::convertible_to<F> G, typename ...Brgs>
-        constexpr explicit l_bind_f(G &&g, Brgs &&...brgs)
+        constexpr explicit L_Bind_f(G &&g, Brgs &&...brgs)
             : F(std::forward<G>(g)), args(std::make_tuple(std::forward<Brgs>(brgs)...)) {}
 
 

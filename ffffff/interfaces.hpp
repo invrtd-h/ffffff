@@ -3,6 +3,10 @@
 
 #include <utility>
 
+namespace fff::factory {
+    // declaration
+}
+
 namespace fff {
 
     template<class, class...>
